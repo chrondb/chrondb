@@ -2,8 +2,9 @@
   (:require [clojure.java.io :as io]
             [clojure.data.json :as json]
             [clojure.pprint :as pp]
-            [clucie.core :as core]
-            [environ.core :refer [env]])
+            [environ.core :refer [env]]
+            [clucie.core :as index-core]
+            [chrondb.search.index :as index])
   (:use clj-jgit.porcelain)
   (:gen-class))
 
@@ -29,4 +30,14 @@
     (git-add my-repo "flubber.json")
     (pp/pprint (git-status my-repo))
     (git-commit my-repo "Add file flubber.json" :sign? false :commiter {:name "Avelino" :email "a@b.ccc"})
-    (pp/pprint (git-status my-repo))))
+    (pp/pprint (git-status my-repo))
+    (index-core/add! index/store
+                 my-struct
+                 [:number :title]
+                 index/analyzer)
+    (pp/pprint (index-core/phrase-search index/store
+                              {:title "beatles"}
+                              10
+                              index/analyzer
+                              0
+                              5))))
