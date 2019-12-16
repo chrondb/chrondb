@@ -16,6 +16,15 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 - archive
 - ... [git high-level commands (porcelain)](https://git-scm.com/docs/git#_high_level_commands_porcelain)
 
+## Features
+
+- Document - schemeless
+- Search - full-text search
+- Sorting by any field
+- Flexible faceting, highlighting, joins and result grouping
+- Cross-Platform Solution
+
+
 ## POC stdout
 
 ```
