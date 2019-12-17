@@ -1,5 +1,7 @@
 # chrondb
 
+_Chronological key/value Database storing based on database-shaped git (core) architecture_
+
 Understand how and when changes were made. **chrondb** stores all history, and lets you query against any point in time.
 
 Git structure is a powerful solution for storing **"data"** (files) in chronological order, _chrondb_ uses git core as a data structure to structure the data timeline, making it possible to return to any necessary point and bringing all git functions for a database:
@@ -14,15 +16,26 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 - log
 - blame
 - archive
+- [hooks](https://git-scm.com/docs/githooks#_hooks)
 - ... [git high-level commands (porcelain)](https://git-scm.com/docs/git#_high_level_commands_porcelain)
 
 ## Features
 
+- **Historic change** with chronological evolution - _aka_ git commits
 - Document - schemeless
 - Search - full-text search
 - Sorting by any field
 - Flexible faceting, highlighting, joins and result grouping
 - Cross-Platform Solution
+- Transactions (git branch/merge)
+- Data replication (git hooks events)
+- Cluster
+- High availability
+- Plugable/Expandable (possibility of integration with tools that connects in git repository, e.g. jenkins)
+
+## Problems
+
+- Large volume of writing
 
 
 ## POC stdout
