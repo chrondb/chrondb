@@ -19,17 +19,26 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 - [hooks](https://git-scm.com/docs/githooks#_hooks)
 - ... [git high-level commands (porcelain)](https://git-scm.com/docs/git#_high_level_commands_porcelain)
 
+## Term alignment, from database to git
+
+> The goal is to speak the same language as the database world
+
+- database: _git_ repository (local or remotely)
+- scheme: _git_ branch
+- table: directory added on _git_ repository
+- field struct: json (document) - will be persisted in a file and indexed in _lucene_ 
+
 ## Features
 
-- **Historic change** with chronological evolution - _aka_ git commits
+- **Historic change** with chronological evolution - _aka_ git commits (gpg signature support)
 - Document - schemeless
 - Search - full-text search
 - Sorting by any field
 - Flexible faceting, highlighting, joins and result grouping
-- Cross-Platform Solution
-- Transactions (git branch/merge)
-- Data replication (git hooks events)
-- Cluster
+- Cross-Platform Solution - Linux, \*BSD, macOS and Windows
+- Transactions - git merge after temp branch save
+- Data replication - git hooks events
+- Cluster - multi git repository (regardless of location) 
 - High availability
 - Plugable/Expandable (possibility of integration with tools that connects in git repository, e.g. jenkins)
 
@@ -38,31 +47,8 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 - Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**, [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java);
 
 
-
 ## RUN
 
 ```sh
 lein run
-```
-
-## POC stdout
-
-```
-"4"
-"[{\"number\":\"1\",\"title\":\"Please Please Me\"},{\"number\":\"2\",\"title\":\"With the Beatles\"},{\"number\":\"3\",\"title\":\"A Hard Day's Night\"},{\"number\":\"4\",\"title\":\"Beatles for Sale\"},{\"number\":\"5\",\"title\":\"Help!\"}]"
-"data/0d345e56-09b1-47b2-8840-fdb2095c1d23"
-{:added #{"flubber.json"},
- :changed #{},
- :missing #{},
- :modified #{},
- :removed #{},
- :untracked #{}}
-{:added #{},
- :changed #{},
- :missing #{},
- :modified #{},
- :removed #{},
- :untracked #{}}
-[{:number "2", :title "With the Beatles"}
- {:number "4", :title "Beatles for Sale"}]
 ```
