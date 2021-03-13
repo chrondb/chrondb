@@ -35,8 +35,15 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 
 ## Problems
 
-- Large volume of writing
+- Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**, [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java);
 
+
+
+## RUN
+
+```sh
+lein run
+```
 
 ## POC stdout
 
