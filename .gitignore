@@ -14,5 +14,12 @@ pom.xml.asc
 *.class
 /.lein-*
 /.nrepl-port
-data
+data/
 stdout
+.lsp/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
