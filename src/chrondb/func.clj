@@ -1,10 +1,10 @@
 (ns chrondb.func
   (:require [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [clj-compress.core :as c])
+            [clj-compress.core :as c]
+            [clj-jgit.porcelain :as jgit])
   (:import (org.eclipse.jgit.api Git)
-           (java.io ByteArrayOutputStream))
-  (:use [clj-jgit.porcelain]))
+           (java.io ByteArrayOutputStream)))
 
 (def file-ext ".cdb")
 (def back-to-repo "/../")
@@ -13,8 +13,8 @@
 (defn path->repo
   [path]
   (if (.isDirectory (io/file path))
-    (load-repo path)
-    (git-init :dir path)))
+    (jgit/load-repo path)
+    (jgit/git-init :dir path)))
 
 (defn save
   [^Git repo key value
@@ -29,7 +29,7 @@
         data-filepath (str repo-dir data-filename)
         data->str (json/write-str value)]
     (c/compress-data (.getBytes data->str) data-filepath compressor-type)
-    (git-commit repo (str msg data-filename)
+    (jgit/git-commit repo (str msg data-filename)
                 :all? true
                 :no-verify? no-verify?
                 :sign? sign?
