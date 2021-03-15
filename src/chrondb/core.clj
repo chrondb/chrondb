@@ -15,6 +15,7 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
+  (println "args:" args)
   (let [chrondb-dir (.toString (java.util.UUID/randomUUID))
         chrondb-data-dir (or (env :data-dir) "data")
         chrondb-git-dir (str chrondb-data-dir "/" chrondb-dir "/")

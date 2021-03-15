@@ -7,10 +7,9 @@
   ^ByteArrayOutputStream [^String str]
   (with-open [out (ByteArrayOutputStream.)
               gzip (GZIPOutputStream. out)]
-    (do
-      (.write gzip (.getBytes str))
-      (.finish gzip)
-      (.toByteArray out))))
+    (.write gzip (.getBytes str))
+    (.finish gzip)
+    (.toByteArray out)))
 
 (defn gzipped-input-stream->str
   ^String

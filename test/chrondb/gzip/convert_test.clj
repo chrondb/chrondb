@@ -1,8 +1,9 @@
 (ns chrondb.gzip.convert-test
-  (:require [clojure.test :refer :all]
-            [chrondb.gzip.convert :refer :all]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [chrondb.gzip.convert :refer [str->gzipped-bytes gzipped-input-stream->str]]))
 
 (def test-str "π3.14")
+(def gzipped (str->gzipped-bytes test-str))
 
 (deftest str-to-gzip
   (testing "convert string -> gzip"
@@ -11,7 +12,6 @@
     (is (bytes? (str->gzipped-bytes test-str)))))
 
 (deftest gzip-to-str
-  (def gzipped (str->gzipped-bytes test-str))
   (testing "convert gzip -> string"
     (is (= test-str
            (gzipped-input-stream->str
