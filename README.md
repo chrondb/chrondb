@@ -32,6 +32,7 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 
 - **Historic change** with chronological evolution - _aka_ git commits (gpg signature support)
 - Document - schemeless
+- Gzip compress content - when there's need for a very fast compression, gzip is the clear winner, [benchmark](https://tukaani.org/lzma/benchmarks.html) 
 - Search - full-text search
 - Sorting by any field
 - Flexible faceting, highlighting, joins and result grouping
