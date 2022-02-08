@@ -1,8 +1,8 @@
 (ns chrondb.core
-  (:require [environ.core :refer [env]]
-            [clucie.core :as index-core]
+  (:require [chrondb.func :as func]
             [chrondb.search.index :as index]
-            [chrondb.func :as func])
+            [clucie.core :as index-core]
+            [environ.core :refer [env]])
   (:gen-class))
 
 (def chrondb-struct-value
@@ -26,15 +26,20 @@
     ;; chrondb find by key
     (println "find-by-key:" (func/find-by-key chrondb-repo 1))
 
-    ;; index on lucene
-    (index-core/add! index/store
-                     chrondb-struct-value
-                     [:number :title]
-                     index/analyzer)
+    ;; lucene store
+    (def index-store (index/store :type "memory"))
+
+    ;; lucene index test
+    (index-core/add!
+     index-store
+     chrondb-struct-value
+     [:number :title]
+     index/analyzer)
     (println "search out:"
-             (index-core/phrase-search index/store
-                                       {:title "beatles"}
-                                       10
-                                       index/analyzer
-                                       0
-                                       5))))
+             (index-core/phrase-search
+              index-store
+              {:title "beatles"}
+              10
+              index/analyzer
+              0
+              5))))
