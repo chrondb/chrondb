@@ -1,6 +1,8 @@
 # chrondb
 
-_Chronological key/value Database storing based on database-shaped git (core) architecture_
+> ⚠️ this project is in development ⚠️
+
+_Chronological **key/value** Database storing based on database-shaped `git` (core) architecture_
 
 Understand how and when changes were made. **chrondb** stores all history, and lets you query against any point in time.
 
@@ -26,27 +28,26 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 - database: _git_ repository (local or remotely)
 - scheme: _git_ branch
 - table: directory added on _git_ repository
-- field struct: json (document) - will be persisted in a file and indexed in _lucene_ 
+- field struct: json (document) - will be persisted in a file and indexed in _lucene_
 
 ## Features
 
 - **Historic change** with chronological evolution - _aka_ git commits (gpg signature support)
 - Document - schemeless
-- Gzip compress content - when there's need for a very fast compression, gzip is the clear winner, [benchmark](https://tukaani.org/lzma/benchmarks.html) 
+- Gzip compress content - when there's need for a very fast compression, gzip is the clear winner, [benchmark](https://tukaani.org/lzma/benchmarks.html)
 - Search - full-text search
 - Sorting by any field
 - Flexible faceting, highlighting, joins and result grouping
 - Cross-Platform Solution - Linux, \*BSD, macOS and Windows
 - Transactions - git merge after temp branch save
 - Data replication - git hooks events
-- Cluster - multi git repository (regardless of location) 
+- Cluster - multi git repository (regardless of location)
 - High availability
 - Plugable/Expandable (possibility of integration with tools that connects in git repository, e.g. jenkins)
 
 ## Problems
 
 - Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**, [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java);
-
 
 ## RUN
 

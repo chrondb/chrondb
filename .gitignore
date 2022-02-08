@@ -17,6 +17,7 @@ pom.xml.asc
 data/
 stdout
 .lsp/
+.clj-kondo/
 
 ### IntelliJ IDEA ###
 .idea
