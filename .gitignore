@@ -18,6 +18,7 @@ data/
 stdout
 .lsp/
 .clj-kondo/
+.calva/
 
 ### IntelliJ IDEA ###
 .idea
