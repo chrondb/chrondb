@@ -52,5 +52,11 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 ## RUN
 
 ```sh
-lein run
+clj -X:run
+```
+
+## Test
+
+```sh
+clj -X:test
 ```
