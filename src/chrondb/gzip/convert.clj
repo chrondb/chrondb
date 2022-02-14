@@ -15,8 +15,8 @@
 (defn gzipped-input-stream->str
   "decompress gzip to string"
   ^String
-  [^ByteArrayInputStream input-stream &{:keys [^String encoding]
-                                        :or   {encoding "UTF-8"}}]
+  [^ByteArrayInputStream input-stream & {:keys [^String encoding]
+                                         :or   {encoding "UTF-8"}}]
   (with-open [out (ByteArrayOutputStream.)]
     (io/copy (GZIPInputStream. input-stream) out)
     (.close input-stream)
