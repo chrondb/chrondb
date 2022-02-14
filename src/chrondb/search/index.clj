@@ -8,8 +8,8 @@
 
 (defn store
   "lucene store (memory or disk), if the type is other than `memory` it must be the path that will be saved"
-  [&{:keys [type]
-     :or {type "memory"}}]
+  [& {:keys [type]
+      :or {type "memory"}}]
   (if (identical? type "memory")
     (store/memory-store)
     (store/disk-store type)))
