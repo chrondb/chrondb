@@ -19,8 +19,7 @@
    {:username ((faker/person :en) :username)
     :age      ((faker/person :en) :age)}])
 
-#_{:clj-kondo/ignore [:redefined]}
-(def chrondb-struct-value
+(def chrondb-struct-value-merged
   (conj chrondb-struct-value
         {:username test-search-username
          :age      ((faker/person :en) :age)}))
@@ -36,13 +35,13 @@
         my-key "my-key"]
 
     ;; chrondb save
-    (func/save chrondb-local-repo my-key chrondb-struct-value
+    (func/save chrondb-local-repo my-key chrondb-struct-value-merged
                :branch-name "lerolero2")
     ;; chrondb find by key
     (println "find-by-key:" (func/find-by-key chrondb-local-repo my-key))
 
     ;; lucene index test
-    (index-core/add! index-store chrondb-struct-value [:age :username] index/analyzer)
+    (index-core/add! index-store chrondb-struct-value-merged [:age :username] index/analyzer)
     (println
      "search out:"
      (index-core/phrase-search index-store {:username test-search-username} 10 index/analyzer 0 5))))
