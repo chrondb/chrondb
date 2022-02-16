@@ -5,6 +5,8 @@ on: [push, pull_request]
 jobs:
   lint:
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
     - uses: DeLaGuardo/setup-clj-kondo@v1
       with:
