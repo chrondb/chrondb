@@ -10,5 +10,5 @@ jobs:
           graalvm-version: "21.0.0.java11"
       - uses: DeLaGuardo/setup-clojure@master
         with:
-          cli: "1.10.2"
+          tools-deps: "1.10.1.469"
       - run: clojure -A:dev:test
