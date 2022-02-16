@@ -11,4 +11,4 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@master
         with:
           tools-deps: "1.10.1.469"
-      - run: clj -X:test
+      - run: clojure -X:test
