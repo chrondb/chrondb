@@ -11,4 +11,4 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@master
         with:
           cli: "1.10.2"
-      - run: clojure -X:test
+      - run: clj -X:test

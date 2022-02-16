@@ -18,6 +18,8 @@
     :age      ((faker/person :en) :age)}
    {:username ((faker/person :en) :username)
     :age      ((faker/person :en) :age)}])
+
+#_{:clj-kondo/ignore [:redefined]}
 (def chrondb-struct-value
   (conj chrondb-struct-value
         {:username test-search-username
