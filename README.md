@@ -34,7 +34,8 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 
 - **Historic change** with chronological evolution - _aka_ git commits (gpg signature support)
 - Document - schemeless
-- Gzip compress content - when there's need for a very fast compression, gzip is the clear winner, [benchmark](https://tukaani.org/lzma/benchmarks.html)
+- Gzip compress content - when there's need for a very fast compression, gzip is the clear
+  winner, [benchmark](https://tukaani.org/lzma/benchmarks.html)
 - Search - full-text search
 - Sorting by any field
 - Flexible faceting, highlighting, joins and result grouping
@@ -45,9 +46,15 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 - High availability
 - Plugable/Expandable (possibility of integration with tools that connects in git repository, e.g. jenkins)
 
+## Community links
+
+- [github](https://github.com/chrondb/chrondb)
+- [chrondb channel in clojurians slack](https://github.com/chrondb/chrondb)
+
 ## Problems
 
-- Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**, [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java);
+- Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**
+  , [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java)
 
 ## RUN
 

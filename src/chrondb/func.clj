@@ -4,7 +4,7 @@
             [clj-compress.core :as c]
             [clj-jgit.porcelain :as jgit]
             [chrondb.config :as config])
-  (:import (java.io ByteArrayOutputStream)
+  (:import (java.io ByteArrayOutputStream File)
            (org.eclipse.jgit.api Git)))
 
 (defn branch-current?
@@ -74,5 +74,12 @@
         data-filename (str key config/file-ext)
         data-filepath (str repo-dir data-filename)
         output (ByteArrayOutputStream.)]
-    (c/decompress-data data-filepath output config/compressor-type)
-    (json/read-str (.toString output))))
+    (when (.exists (io/file data-filepath))
+      (c/decompress-data data-filepath output config/compressor-type)
+      (json/read-str (.toString output)))))
+
+(defn delete-database
+  [path]
+  (let [repo (jgit/load-repo path)]
+    (doseq [^File f (-> repo .getRepository .getDirectory .getParentFile file-seq reverse)]
+      (.delete f))))
