@@ -1,10 +1,9 @@
 (ns counter.main
-  (:require [io.pedestal.http.route :as route]
-            [io.pedestal.http :as http]
-            [cheshire.core :as json]
-            [chrondb.func :as func]
+  (:require [cheshire.core :as json]
             [chrondb.api-v1 :as api-v1]
-            [clojure.edn :as edn]))
+            [chrondb.func :as func]
+            [io.pedestal.http :as http]
+            [io.pedestal.http.route :as route]))
 
 (defn app-v0
   [{::keys [chronn]}]

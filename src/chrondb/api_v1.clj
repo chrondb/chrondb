@@ -3,20 +3,19 @@
   JGit javadoc: https://download.eclipse.org/jgit/site/6.0.0.202111291000-r/apidocs/index.html
   "
   (:refer-clojure :exclude [select-keys])
-  (:require [clj-jgit.porcelain :as jgit]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.data.json :as json])
-  (:import (java.io File InputStream OutputStream ByteArrayOutputStream)
-           (org.eclipse.jgit.api Git)
-           (org.eclipse.jgit.lib AnyObjectId Constants FileMode TreeFormatter CommitBuilder PersonIdent RefUpdate$Result ObjectId Repository)
-           (org.eclipse.jgit.treewalk TreeWalk)
+  (:import (java.io ByteArrayOutputStream File InputStream OutputStream)
+           (java.lang AutoCloseable)
            (java.nio.charset StandardCharsets)
-           (org.eclipse.jgit.revwalk RevWalk)
-           (org.eclipse.jgit.storage.file FileRepositoryBuilder)
            (java.time Instant)
            (java.util.zip GZIPInputStream GZIPOutputStream)
-           (java.lang AutoCloseable)))
+           (org.eclipse.jgit.api Git)
+           (org.eclipse.jgit.lib AnyObjectId CommitBuilder Constants FileMode CommitBuilder PersonIdent #_RefUpdate$Result ObjectId Repository)
+           (org.eclipse.jgit.revwalk RevWalk)
+           (org.eclipse.jgit.storage.file FileRepositoryBuilder)
+           (org.eclipse.jgit.treewalk TreeWalk)))
 ;; TODO: support InMemoryRepository
 
 

@@ -1,5 +1,5 @@
 (ns counter.main-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [io.pedestal.http :as http]
             [io.pedestal.test :refer [response-for]]
             [counter.main :as counter]
@@ -7,8 +7,7 @@
             [chrondb.config :as config]
             [chrondb.api-v1 :as api-v1]
             [chrondb.func :as func]
-            [clojure.java.io :as io]
-            [clj-jgit.porcelain :as jgit]))
+            [clojure.java.io :as io]))
 
 (set! *warn-on-reflection* true)
 
