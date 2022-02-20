@@ -4,6 +4,13 @@
 
 _Chronological **key/value** Database storing based on database-shaped `git` (core) architecture_
 
+**we are:**
+- Immutable and atomic data
+- ACID transactions
+- Schemaless
+- Chronological
+- SQL compliance - in query within document
+
 Understand how and when changes were made. **chrondb** stores all history, and lets you query against any point in time.
 
 Git structure is a powerful solution for storing **"data"** (files) in chronological order, _chrondb_ uses git core as a data structure to structure the data timeline, making it possible to return to any necessary point and bringing all git functions for a database:
@@ -34,27 +41,26 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 
 - **Historic change** with chronological evolution - _aka_ git commits (gpg signature support)
 - Document - schemeless
-- Gzip compress content - when there's need for a very fast compression, gzip is the clear
-  winner, [benchmark](https://tukaani.org/lzma/benchmarks.html)
-- Search - full-text search
+- Gzip compress content - when there's need for a very fast compression, gzip is the clear winner, [benchmark](https://tukaani.org/lzma/benchmarks.html)
+- Search and Full Text Search _(by lucene)_
 - Sorting by any field
 - Flexible faceting, highlighting, joins and result grouping
 - Cross-Platform Solution - Linux, \*BSD, macOS and Windows
 - Transactions - git merge after temp branch save
-- Data replication - git hooks events
 - Cluster - multi git repository (regardless of location)
 - High availability
 - Plugable/Expandable (possibility of integration with tools that connects in git repository, e.g. jenkins)
+- Triggers by events via hooks (pre-receive, update and post-receive)
+  - Data replication - _post-receive_
 
-## Community links
-
-- [github](https://github.com/chrondb/chrondb)
-- [chrondb channel in clojurians slack](https://github.com/chrondb/chrondb)
+## Communication Protocol
+- Clojure package
+- _ODBC_/**JDBC** - SQL Compliance
+- RESTful and/or GraphQL
 
 ## Problems
 
-- Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**
-  , [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java)
+- Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**, [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java);
 
 ## RUN
 
