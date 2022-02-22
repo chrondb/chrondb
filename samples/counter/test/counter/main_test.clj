@@ -35,7 +35,7 @@
                (doto pp/pprint))))))
 
 (deftest counter-v1
-  (let [chronn (-> (io/file "data" "counter-v1")
+  (let [chronn (-> "chrondb:file://data/counter-v1"
                  (doto api-v1/delete-database
                        api-v1/create-database)
                  api-v1/connect)
