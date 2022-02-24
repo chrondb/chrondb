@@ -3,24 +3,22 @@
   JGit javadoc: https://download.eclipse.org/jgit/site/6.0.0.202111291000-r/apidocs/index.html
   "
   (:refer-clojure :exclude [select-keys])
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [clojure.data.json :as json]
             [clojure.string :as string])
   (:import (java.io ByteArrayOutputStream File InputStream OutputStream)
            (java.lang AutoCloseable)
-           (java.nio.charset StandardCharsets)
-           (java.time Instant Clock)
-           (org.eclipse.jgit.api Git)
-           (org.eclipse.jgit.internal.storage.dfs InMemoryRepository InMemoryRepository$Builder)
-           (org.eclipse.jgit.lib AnyObjectId CommitBuilder CommitBuilder Constants FileMode PersonIdent
-             #_RefUpdate$Result ObjectId Repository TreeFormatter BaseRepositoryBuilder ObjectReader)
-           (org.eclipse.jgit.revwalk RevWalk RevTree RevCommit RevBlob)
+           (java.net URI)
+           (java.time Clock Instant)
+           (org.eclipse.jgit.errors IncorrectObjectTypeException)
+           (org.eclipse.jgit.internal.storage.dfs InMemoryRepository$Builder)
+           (org.eclipse.jgit.lib AnyObjectId CommitBuilder BaseRepositoryBuilder CommitBuilder Constants FileMode
+                                 ObjectId PersonIdent Repository TreeFormatter)
+           (org.eclipse.jgit.revwalk RevBlob RevCommit RevTree RevWalk)
            (org.eclipse.jgit.storage.file FileRepositoryBuilder)
            (org.eclipse.jgit.treewalk TreeWalk)
-           (java.net URI)
-           (org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup)
-           (org.eclipse.jgit.errors IncorrectObjectTypeException)))
+           (org.eclipse.jgit.treewalk.filter PathFilterGroup)))
 ;; TODO: support InMemoryRepository
 
 (set! *warn-on-reflection* true)
@@ -112,7 +110,7 @@
                      (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
                      (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
                      (.setTreeId root-tree-id)
-                     (.setMessage "init"))
+                     (.setMessage "init\n"))
             commit-id (.insert object-inserter commit)]
         (.flush object-inserter)
         (-> (.updateRef repository Constants/HEAD)
