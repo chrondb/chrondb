@@ -6,7 +6,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [clojure.pprint :as pp])
   (:import (java.io ByteArrayOutputStream File InputStream OutputStream)
            (java.lang AutoCloseable)
            (java.net URI)
@@ -142,8 +143,7 @@
      ::value-writer (fn [^OutputStream out]
                       (io/writer out))
      ::write-value  (fn [x writer]
-                      (json/write x writer))
-     ::branch       branch}))
+                      (json/write x writer))}))
 
 (defn db
   [{::keys [^Repository repository]
@@ -232,12 +232,13 @@
       (range (.getTreeCount tw)))))
 
 (defn save
-  [{::keys [^Repository repository ^AnyObjectId branch value-writer write-value]
+  [{::keys [^Repository repository value-writer write-value]
     :as    chronn} k v]
 
   (with-open [object-inserter (.newObjectInserter repository)
               rw (RevWalk. repository)]
-    (let [^ByteArrayOutputStream baos (with-open [baos (ByteArrayOutputStream.)
+    (let [branch (.resolve repository Constants/HEAD)
+          ^ByteArrayOutputStream baos (with-open [baos (ByteArrayOutputStream.)
                                                   w ^AutoCloseable (value-writer baos)]
                                         (write-value v w)
                                         baos)
@@ -251,11 +252,16 @@
 
           ^TreeFormatter tree-formatter (reduce (fn [^TreeFormatter tree-formatter
                                                      {::keys [^String name ^FileMode file-mode ^ObjectId object-id]}]
-                                                  (doto tree-formatter
-                                                    (.append name file-mode object-id)))
-                                          (doto (TreeFormatter.)
-                                            (.append (str k) FileMode/REGULAR_FILE object-id))
-                                          (tree-elements (TreeWalk. repository) tree))
+                                                  (.append tree-formatter name file-mode object-id)
+                                                  tree-formatter)
+                                          (TreeFormatter.)
+                                          (concat
+                                            (remove
+                                              (comp #{(str k)} ::name)
+                                              (tree-elements (TreeWalk. repository) tree))
+                                            [{::name      (str k)
+                                              ::file-mode FileMode/REGULAR_FILE
+                                              ::object-id object-id}]))
 
           tree-id (.insert object-inserter tree-formatter)
           next-tree (.parseTree rw tree-id)
@@ -264,7 +270,7 @@
                    (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
                    (.setTreeId next-tree)
                    (.setParentId branch)
-                   (.setMessage "Hello!"))
+                   (.setMessage "Hello!\n"))
           commit-id (.insert object-inserter commit)]
       (.flush object-inserter)
       (let [ru (doto (.updateRef repository Constants/HEAD)
