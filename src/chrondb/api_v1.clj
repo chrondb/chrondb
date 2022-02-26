@@ -6,8 +6,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [clojure.string :as string]
-            [clojure.pprint :as pp])
+            [clojure.string :as string])
   (:import (java.io ByteArrayOutputStream File InputStream OutputStream)
            (java.lang AutoCloseable)
            (java.net URI)
@@ -215,12 +214,10 @@
              (.setFilter new-filter)
              (.reset tree))]
     (loop []
-      (when (.next tw)
-        (prn [:path (.getPathString tw) (.isSubtree tw)
-              (.matchFilter new-filter tw)])
-        (when (.isSubtree tw)
-          (.enterSubtree tw)
-          (recur))))
+      (when (and (.next tw)
+              (.isSubtree tw))
+        (.enterSubtree tw)
+        (recur)))
     (into {}
       (map (fn [nth]
              (let [obj (.getObjectId tw nth)]

@@ -43,12 +43,12 @@
                                "GIT_COMMITTER_EMAIL" "chrondb@localhost"
                                "GIT_COMMITTER_DATE"  "946684800 +0000"}]
           (.mkdirs dir)
-          (prn (sh/sh "git" "init" "--initial-branch=main" "."))
-          (prn (sh/sh "mkdir" "db"))
+          (sh/sh "git" "init" "--initial-branch=main" ".")
+          (sh/sh "mkdir" "db")
           (spit (io/file dir "db" "created-at")
             (json/write-str (str (.toInstant #inst"2000"))))
-          (prn (sh/sh "git" "add" "db/created-at"))
-          (prn (sh/sh "git" "commit" "-aminit")))
+          (sh/sh "git" "add" "db/created-at")
+          (sh/sh "git" "commit" "-aminit"))
         (sh/sh "git" "clone" "--bare" "tree-structure-cli" "tree-structure-cli-bare"
           :dir (io/file "data"))
         (is (= target-tree
@@ -100,16 +100,16 @@
                                "GIT_COMMITTER_EMAIL" "chrondb@localhost"
                                "GIT_COMMITTER_DATE"  "946684800 +0000"}]
           (.mkdirs dir)
-          (prn (sh/sh "git" "init" "--initial-branch=main" "."))
-          (prn (sh/sh "mkdir" "db"))
+          (sh/sh "git" "init" "--initial-branch=main" ".")
+          (sh/sh "mkdir" "db")
           (spit (io/file dir "db" "created-at")
             (json/write-str (str (.toInstant #inst"2000"))))
-          (prn (sh/sh "git" "add" "db/created-at"))
-          (prn (sh/sh "git" "commit" "-aminit"))
+          (sh/sh "git" "add" "db/created-at")
+          (sh/sh "git" "commit" "-aminit")
           (spit (io/file dir "n")
             (json/write-str 0))
-          (prn (sh/sh "git" "add" "n"))
-          (prn (sh/sh "git" "commit" "-amHello!")))
+          (sh/sh "git" "add" "n")
+          (sh/sh "git" "commit" "-amHello!"))
         (sh/sh "git" "clone" "--bare" "tree-structure-one-commit-cli" "tree-structure-one-commit-cli-bare"
           :dir (io/file "data"))
         (is (= target-tree
@@ -166,25 +166,25 @@
                                "GIT_COMMITTER_EMAIL" "chrondb@localhost"
                                "GIT_COMMITTER_DATE"  "946684800 +0000"}]
           (.mkdirs dir)
-          (prn (sh/sh "git" "init" "--initial-branch=main" "."))
-          (prn (sh/sh "mkdir" "db"))
+          (sh/sh "git" "init" "--initial-branch=main" ".")
+          (sh/sh "mkdir" "db")
           (spit (io/file dir "db" "created-at")
             (json/write-str (str (.toInstant #inst"2000"))))
-          (prn (sh/sh "git" "add" "db/created-at"))
-          (prn (sh/sh "git" "commit" "-aminit"))
+          (sh/sh "git" "add" "db/created-at")
+          (sh/sh "git" "commit" "-aminit")
           (spit (io/file dir "n")
             (json/write-str 0))
-          (prn (sh/sh "git" "add" "n"))
-          (prn (sh/sh "git" "commit" "-amHello!"))
+          (sh/sh "git" "add" "n")
+          (sh/sh "git" "commit" "-amHello!")
           (spit (io/file dir "n")
             (json/write-str 1))
-          (prn (sh/sh "git" "add" "n"))
-          (prn (sh/sh "git" "commit" "-amHello!")))
+          (sh/sh "git" "add" "n")
+          (sh/sh "git" "commit" "-amHello!"))
         (sh/sh "git" "clone" "--bare" "tree-structure-two-commit-cli" "tree-structure-two-commit-cli-bare"
           :dir (io/file "data"))
         (is (= target-tree
               (-> (api-v1/repo->clj (api-v1/connect "chrondb:file://data/tree-structure-two-commit-cli-bare"))
-                (doto pp/pprint))))))))
+                #_(doto pp/pprint))))))))
 
 
 
@@ -197,23 +197,23 @@
                              (instant []
                                (.toInstant #inst"2000")))]
     (let [chronn (-> "chrondb:file://data/counter-v1"
-                   #_(doto api-v1/delete-database
-                       api-v1/create-database)
+                   (doto api-v1/delete-database
+                         api-v1/create-database)
                    api-v1/connect)]
       (is (= {"db/created-at" "2000-01-01T00:00:00Z"}
             (-> (api-v1/select-keys (api-v1/db chronn)
                   ["db/created-at"])
-              (doto pp/pprint))))
+              #_(doto pp/pprint))))
       (is (= {"n" 42}
             (-> (api-v1/save chronn "n" 42)
               :db-after
               (api-v1/select-keys ["n"])
-              (doto pp/pprint))))
+              #_(doto pp/pprint))))
       (is (= {"db/created-at" "2000-01-01T00:00:00Z"}
             (-> (api-v1/select-keys (api-v1/db chronn)
                   ["db/created-at"])
-              (doto pp/pprint))))
+              #_(doto pp/pprint))))
       (is (= {"n" 42}
             (-> (api-v1/select-keys (api-v1/db chronn)
                   ["n"])
-              (doto pp/pprint)))))))
+              #_(doto pp/pprint)))))))

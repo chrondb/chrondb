@@ -1,18 +1,17 @@
 (ns counter.main-test
-  (:require [clojure.test :refer [deftest is]]
-            [io.pedestal.http :as http]
-            [io.pedestal.test :refer [response-for]]
-            [counter.main :as counter]
-            [clojure.pprint :as pp]
+  (:require [chrondb.api-v1 :as api-v1]
             [chrondb.config :as config]
-            [chrondb.api-v1 :as api-v1]
             [chrondb.func :as func]
-            [clojure.java.io :as io]))
+            [clojure.pprint :as pp]
+            [clojure.test :refer [deftest is]]
+            [counter.main :as counter]
+            [io.pedestal.http :as http]
+            [io.pedestal.test :refer [response-for]]))
 
 (set! *warn-on-reflection* true)
 
 (deftest counter-v0
-  (func/delete-database config/chrondb-local-git-dir)
+  #_(func/delete-database config/chrondb-local-git-dir)
   (let [chronn (func/path->repo config/chrondb-local-git-dir
                                 :branch-name config/chrondb-local-repo-branch)
         service-fn (-> {::counter/chronn chronn}
@@ -48,13 +47,20 @@
     (is (= {:status 200, :body "{}"}
           (-> (response-for service-fn :get "/")
             (select-keys [:status :body])
-            (doto pp/pprint))))
+            #_(doto pp/pprint))))
     (is (= {:status 200, :body "{\"n\":1}"}
           (-> (response-for service-fn :post "/")
             (select-keys [:status :body])
-            (doto pp/pprint))))
+            #_(doto pp/pprint))))
     (is (= {:status 200, :body "{\"n\":1}"}
           (-> (response-for service-fn :get "/")
             (select-keys [:status :body])
-            (doto pp/pprint))))))
-
+            #_(doto pp/pprint))))
+    (is (= {:status 200, :body "{\"n\":2}"}
+          (-> (response-for service-fn :post "/")
+            (select-keys [:status :body])
+            #_(doto pp/pprint))))
+    (is (= {:status 200, :body "{\"n\":2}"}
+          (-> (response-for service-fn :get "/")
+            (select-keys [:status :body])
+            #_(doto pp/pprint))))))
