@@ -1,0 +1,12 @@
+{:paths   ["src"]
+ :deps    {org.clojure/clojure          {:mvn/version "1.11.0-rc1"}
+           org.clojure/core.async       {:mvn/version "1.5.648"}
+           io.pedestal/pedestal.service {:mvn/version "0.5.10"}
+           io.pedestal/pedestal.jetty   {:mvn/version "0.5.10"}
+           chrondb/chrondb              {:local/root "../.."}
+           hiccup/hiccup                {:mvn/version "2.0.0-alpha2"}
+           org.slf4j/slf4j-simple       {:mvn/version "2.0.0-alpha6"}}
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps  {org.clojure/test.check {:mvn/version "1.1.1"}
+                                org.jsoup/jsoup        {:mvn/version "1.14.3"}}}}}
+
