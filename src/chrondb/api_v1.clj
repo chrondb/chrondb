@@ -184,21 +184,19 @@
               {:mode :blob
                :id   (second (string/split (str blob) #"\s"))})
             (commit->clj [^RevCommit commit]
-              (merge {:mode :commit
-                      :id   (second (string/split (str commit) #"\s"))
-                      :tree (tree->clj (.getTree commit))}
-                (when-let [parents (seq (map commit->clj (.getParents commit)))]
-                  {:parents (vec parents)})))
+              (let [commit (.parseCommit rw commit)]
+                (merge {:mode :commit
+                        :id   (second (string/split (str commit) #"\s"))}
+                  (some-> (.getTree commit) tree->clj (->> (hash-map :tree)))
+                  (when-let [parents (seq (map commit->clj (.getParents commit)))]
+                    {:parents (vec parents)}))))
             (tree->clj [^RevTree tree]
-              (try
-                {:mode  :tree
-                 :nodes (vec (for [{::keys [path file-mode object-id]} (tree-elements (TreeWalk. repository) tree)]
-                               {:path      path
-                                :file-mode (str file-mode)
-                                :node      (any->clj object-id)}))
-                 :id    (second (string/split (str tree) #"\s"))}
-                (catch NullPointerException ex
-                  {:mode :tree})))]
+              {:mode  :tree
+               :nodes (vec (for [{::keys [path file-mode object-id]} (tree-elements (TreeWalk. repository) tree)]
+                             {:path      path
+                              :file-mode (str file-mode)
+                              :node      (any->clj object-id)}))
+               :id    (second (string/split (str tree) #"\s"))})]
       (let [commit (.parseCommit repository (.resolve repository Constants/HEAD))]
         (commit->clj commit)))))
 
