@@ -130,7 +130,7 @@
         :dir (io/file "data"))
       (is (= one-commit-tree
             (-> (api-v1/repo->clj (api-v1/connect "chrondb:file://data/tree-structure-one-commit-cli-bare"))
-              (doto pp/pprint)))))))
+              #_(doto pp/pprint)))))))
 
 (def tree-two-commits-with-path
   {:mode    :commit,
@@ -204,6 +204,37 @@
             (-> (api-v1/repo->clj (api-v1/connect "chrondb:file://data/tree-structure-one-commit-with-path-cli-bare"))
               #_(doto pp/pprint)))))))
 
+(deftest list-dir-git-api
+  (binding [api-v1/*clock* (proxy [Clock] []
+                             (instant []
+                               (.toInstant #inst"2000")))]
+    (let [dir (io/file "data" "tree-structure-one-commit-with-path-cli")]
+      (binding [sh/*sh-dir* dir
+                sh/*sh-env* {"GIT_AUTHOR_NAME"     "chrondb"
+                             "GIT_AUTHOR_EMAIL"    "chrondb@localhost"
+                             "GIT_AUTHOR_DATE"     "946684800 +0000"
+                             "GIT_COMMITTER_NAME"  "chrondb"
+                             "GIT_COMMITTER_EMAIL" "chrondb@localhost"
+                             "GIT_COMMITTER_DATE"  "946684800 +0000"}]
+        (.mkdirs dir)
+        (sh/sh "git" "init" "--initial-branch=main" ".")
+        (sh/sh "mkdir" "db")
+        (spit (io/file dir "db" "created-at")
+          (json/write-str (str (.toInstant #inst"2000"))))
+        (sh/sh "git" "add" "db/created-at")
+        (sh/sh "git" "commit" "-aminit")
+        (.mkdirs (io/file dir "hello"))
+        (spit (io/file dir "hello" "n")
+          (json/write-str 0))
+        (sh/sh "git" "add" "hello/n")
+        (sh/sh "git" "commit" "-amHello!"))
+      (sh/sh "git" "clone" "--bare" "tree-structure-one-commit-with-path-cli" "tree-structure-one-commit-with-path-cli-bare"
+        :dir (io/file dir ".."))
+      (is (= ["db/created-at" "hello/n"]
+            (-> (api-v1/ls-files (api-v1/db (api-v1/connect "chrondb:file://data/tree-structure-one-commit-with-path-cli-bare")))
+              (doto pp/pprint)))))))
+
+
 
 
 (deftest tree-structure-two-commit
@@ -253,7 +284,7 @@
   (binding [api-v1/*clock* (proxy [Clock] []
                              (instant []
                                (.toInstant #inst"2000")))]
-    (let [chronn (-> "chrondb:file://data/counter-v1"
+    (let [chronn (-> "chrondb:file://data/counter-v2"
                    (doto api-v1/delete-database
                          api-v1/create-database)
                    api-v1/connect)]
@@ -266,11 +297,13 @@
               :db-after
               (api-v1/select-keys ["n"])
               #_(doto pp/pprint))))
-      (is (= {"db/created-at" "2000-01-01T00:00:00Z"}
-            (-> (api-v1/select-keys (api-v1/db chronn)
-                  ["db/created-at"])
-              #_(doto pp/pprint))))
-      (is (= {"n" 42}
-            (-> (api-v1/select-keys (api-v1/db chronn)
-                  ["n"])
-              #_(doto pp/pprint)))))))
+      (let [db (api-v1/db chronn)]
+        (is (= ["db/created-at" "n"]
+              (-> (api-v1/ls-files db)
+                (doto pp/pprint))))
+        (is (= {"db/created-at" "2000-01-01T00:00:00Z"}
+              (-> (api-v1/select-keys db ["db/created-at"])
+                #_(doto pp/pprint))))
+        (is (= {"n" 42}
+              (-> (api-v1/select-keys db ["n"])
+                #_(doto pp/pprint))))))))

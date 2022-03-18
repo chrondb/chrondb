@@ -75,7 +75,8 @@
           (-> (response-for service-fn :get "/")
             :body
             str
-            Jsoup/parse
+            println
+            #_#_#_Jsoup/parse
             (.select ".note")
             (->> (mapv (fn [x] (.text x))))
             (doto pp/pprint))))))

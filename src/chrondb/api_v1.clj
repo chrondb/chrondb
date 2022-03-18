@@ -14,7 +14,7 @@
            (org.eclipse.jgit.errors IncorrectObjectTypeException)
            (org.eclipse.jgit.internal.storage.dfs InMemoryRepository$Builder)
            (org.eclipse.jgit.lib AnyObjectId CommitBuilder BaseRepositoryBuilder CommitBuilder Constants FileMode
-                                 ObjectId PersonIdent Repository TreeFormatter)
+                                 ObjectId PersonIdent Repository TreeFormatter ObjectReader ObjectInserter)
            (org.eclipse.jgit.revwalk RevBlob RevCommit RevTree RevWalk)
            (org.eclipse.jgit.storage.file FileRepositoryBuilder)
            (org.eclipse.jgit.treewalk TreeWalk)
@@ -85,6 +85,48 @@
     (doto (.setGitDir (apply io/file (string/split path #"/"))))))
 
 (def ^:dynamic *clock* (Clock/systemUTC))
+(comment
+
+  (defn tree-elements
+    [^TreeWalk tw ^RevTree tree]
+    (with-open [tree-walk (doto tw
+                            (.reset tree))]
+      (loop [vs []]
+        (if (.next tree-walk)
+          (recur (into vs
+                   (map (fn [nth]
+                          {::name      (.getNameString tree-walk)
+                           ::path      (.getPathString tree-walk)
+                           ::file-mode (.getFileMode tree-walk)
+                           ::nth       nth
+                           ::object-id (.getObjectId tree-walk nth)}))
+                   (range (.getTreeCount tree-walk))))
+          vs)))))
+
+
+(defn insert!
+  [{::keys [^ObjectInserter object-inserter
+            ^ObjectReader object-reader
+            path any-object-id trees]}]
+  (loop [^AnyObjectId object-id any-object-id
+         [^String name & path] (reverse (string/split path #"/"))
+         mode FileMode/REGULAR_FILE]
+    (let [next-tree (TreeFormatter.)]
+      (when-not (seq path)
+        (doseq [^RevTree tree trees]
+          (with-open [tw (doto (TreeWalk. object-reader)
+                           (.reset tree))]
+            (when (.next tw)
+              (dotimes [idx (.getTreeCount tw)]
+                (.append next-tree
+                  (.getNameString tw)
+                  FileMode/TREE
+                  (.getObjectId tw idx)))))))
+      (.append next-tree name mode object-id)
+      (if (seq path)
+        (recur (.insert object-inserter next-tree)
+          path FileMode/TREE)
+        (.insert object-inserter next-tree)))))
 
 (defn create-database
   [db-uri]
@@ -98,14 +140,12 @@
                                                                w (io/writer baos)]
                                                      (json/write (str (Instant/now *clock*)) w)
                                                      baos)
+
             created-at-id (.insert object-inserter Constants/OBJ_BLOB
                             (.toByteArray created-at-blob))
-            db-tree-formatter (doto (TreeFormatter.)
-                                (.append "created-at" FileMode/REGULAR_FILE created-at-id))
-            db-tree-formatter-id (.insert object-inserter db-tree-formatter)
-            root-tree-formatter (doto (TreeFormatter.)
-                                  (.append "db" FileMode/TREE db-tree-formatter-id))
-            root-tree-id (.insert object-inserter root-tree-formatter)
+            root-tree-id (insert! {::object-inserter object-inserter
+                                   ::path            "db/created-at"
+                                   ::any-object-id   created-at-id})
             commit (doto (CommitBuilder.)
                      (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
                      (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
@@ -231,39 +271,25 @@
     :as    chronn} k v]
 
   (with-open [object-inserter (.newObjectInserter repository)
-              rw (RevWalk. repository)]
+              rw (RevWalk. repository)
+              object-reader (.newObjectReader repository)]
     (let [branch (.resolve repository Constants/HEAD)
+          old-tree (.getTree (.parseCommit rw branch))
           ^ByteArrayOutputStream baos (with-open [baos (ByteArrayOutputStream.)
                                                   w ^AutoCloseable (value-writer baos)]
                                         (write-value v w)
                                         baos)
-          {::keys [^RevTree tree]} (db chronn)
-
-          ;; tree 0001 db ->
-
-          ;; tree 0001 db
           blob (.toByteArray baos)
-          object-id (.insert object-inserter Constants/OBJ_BLOB blob)
-
-          ^TreeFormatter tree-formatter (reduce (fn [^TreeFormatter tree-formatter
-                                                     {::keys [^String name ^FileMode file-mode ^ObjectId object-id]}]
-                                                  (.append tree-formatter name file-mode object-id)
-                                                  tree-formatter)
-                                          (TreeFormatter.)
-                                          (concat
-                                            (remove
-                                              (comp #{(str k)} ::name)
-                                              (tree-elements (TreeWalk. repository) tree))
-                                            [{::name      (str k)
-                                              ::file-mode FileMode/REGULAR_FILE
-                                              ::object-id object-id}]))
-
-          tree-id (.insert object-inserter tree-formatter)
-          next-tree (.parseTree rw tree-id)
+          blob-id (.insert object-inserter Constants/OBJ_BLOB blob)
+          root-tree-id (insert! {::object-inserter object-inserter
+                                 ::path            (str k)
+                                 ::object-reader   object-reader
+                                 ::trees           [old-tree]
+                                 ::any-object-id   blob-id})
           commit (doto (CommitBuilder.)
                    (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
                    (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
-                   (.setTreeId next-tree)
+                   (.setTreeId root-tree-id)
                    (.setParentId branch)
                    (.setMessage "Hello!\n"))
           commit-id (.insert object-inserter commit)]
@@ -276,15 +302,15 @@
         (case (str status)
           "FAST_FORWARD"
           {:db-after (assoc chronn
-                       ::tree next-tree)}
+                       ::tree root-tree-id)}
           ;; RefUpdate$Result/NEW
           "NEW"
           {:db-after (assoc chronn
-                       ::tree next-tree)}
+                       ::tree root-tree-id)}
           ;; RefUpdate$Result/FORCED
           "FORCED"
           {:db-after (assoc chronn
-                       ::tree next-tree)})))))
+                       ::tree root-tree-id)})))))
 
 (defmethod db-uri->repository-destroyer "file"
   [{::keys [db-uri]}]
@@ -294,17 +320,32 @@
           created-at (get (select-keys db ["db/created-at"])
                        "db/created-at")]
       (when-not created-at
-        (throw (ex-info (str "Can't find a db at " (pr-str db-uri))
+        (throw (ex-info (str "Repository " (pr-str db-uri) " isn't a valid chrondb.")
                  {:cognitect.anomalies/category :cognitect.anomalies/incorrect
                   ::db-uri                      db-uri})))
       (doseq [^File f (reverse (file-seq (.getDirectory ^Repository (::repository chronn))))]
-        (.delete f)))
+        (.delete f))
+      true)
     (catch Exception ex
-      (let [data (ex-data ex)]
+      (let [{:cognitect.anomalies/keys [category]
+             :as                       data} (ex-data ex)]
         (if (and (= (::db-uri data)
                    db-uri)
-              (= :cognitect.anomalies/not-found
-                (:cognitect.anomalies/category data)))
+              (= :cognitect.anomalies/not-found category))
           false
           (throw ex))))))
+
+(defn ls-files
+  [{::keys [^RevTree tree ^Repository repository]}]
+  (let [tree-walk (TreeWalk. repository)]
+    (with-open [tree-walk (doto tree-walk
+                            (.reset tree))]
+      (loop [vs []]
+        (if (.next tree-walk)
+          (if (.isSubtree tree-walk)
+            (do (.enterSubtree tree-walk)
+                (recur vs))
+            (recur (conj vs (.getPathString tree-walk))))
+          vs)))))
+
 
