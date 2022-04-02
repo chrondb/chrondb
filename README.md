@@ -1,4 +1,4 @@
-# chrondb
+# ![chrondb](https://user-images.githubusercontent.com/31996/161378505-4a8824b6-d5f1-4ce0-897b-cec1c5820b26.png)
 
 > ⚠️ this project is in development ⚠️
 
