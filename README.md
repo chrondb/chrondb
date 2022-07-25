@@ -62,14 +62,33 @@ Git structure is a powerful solution for storing **"data"** (files) in chronolog
 
 - Large volume of writing, possible solution **[git lfs](https://git-lfs.github.com/)**, [jgit implementation](https://github.com/eclipse/jgit/blob/master/org.eclipse.jgit.lfs/src/org/eclipse/jgit/lfs/Lfs.java);
 
-## RUN
+## Development
+
+### Dependencies
+
+- Install Clojure command line: https://clojure.org/guides/install_clojure
+
+### Access REPL
 
 ```sh
-clj -X:run
+clj
 ```
 
-## Test
+### Require the namespace and run
+
+In the following example, it's being imported the `chrondb.api` namespace; creting a database in a local test atom and commiting two changes.
+
+Those values are just tests, there's nothing being written to GIT yet at this moment.
 
 ```sh
-clj -X:test
+user=> (require '[chrondb.api :as api])
+nil
+user=> (api/create-database "test")
+{:test {:main {}}}
+user=> (api/commit {:repository :test :branch :main :message "commit message" :key :a :value :b})
+{:test {:main {"UFGBTUAIBP" ({:data {:a :b}, :message "commit message"})}}}
+user=> (api/commit {:repository :test :branch :main :message "commit message" :key :a :value :b})
+{:test {:main {"UFGBTUAIBP" ({:data {:a :b}, :message "commit message"}), "CNNJCMTDEK" ({:data {:a :b}, :message "commit message"})}}}
 ```
+
+**Important:** If you want to check our Roadmap, check our [announcement regards the project development plans](https://github.com/chrondb/chrondb/discussions/4). We are in **Phase one**.
