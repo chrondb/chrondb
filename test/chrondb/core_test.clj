@@ -1,9 +1,8 @@
 (ns chrondb.core-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [chrondb.core :as core]
             [chrondb.search.index :as index]
-            [clucie.core :as index-core])
-  (:import (org.eclipse.jgit.lib Constants)))
+            [clucie.core :as index-core]))
 
 (defn compare-values [expected actual]
   (cond

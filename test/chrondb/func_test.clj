@@ -1,8 +1,7 @@
 (ns chrondb.func-test
-  (:require [clojure.test :refer :all]
-            [chrondb.func :as func]
-            [clojure.data.json :as json])
-  (:import (org.eclipse.jgit.lib Constants Repository)
+  (:require [clojure.test :refer [deftest is testing]]
+            [chrondb.func :as func])
+  (:import (org.eclipse.jgit.lib Repository Constants)
            (org.eclipse.jgit.internal.storage.dfs InMemoryRepository)
            (org.eclipse.jgit.revwalk RevWalk)))
 
