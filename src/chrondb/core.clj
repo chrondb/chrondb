@@ -23,8 +23,11 @@
 
 (defn search
   [index-store _]
-  (let [search-result (index-core/phrase-search index-store {:username test-search-username} 10 index/analyzer 0 5)]
-    (str "search out:" search-result)))
+  (try
+    (let [search-result (index-core/phrase-search index-store {:username test-search-username} 10 index/analyzer 0 5)]
+      (str "search out:" search-result))
+    (catch Exception _
+      "search out:[]")))
 
 (def chrondb-struct-value
   [{:username ((faker/person :en) :username)
