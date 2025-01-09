@@ -1,7 +1,6 @@
 (ns chrondb.core
   (:require [chrondb.func :as func]
             [chrondb.search.index :as index]
-            [chrondb.config :as config]
             [clucie.core :as index-core]
             [talltale.core :as faker])
   (:import (org.eclipse.jgit.lib Repository Constants)
