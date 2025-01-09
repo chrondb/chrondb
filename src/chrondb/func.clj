@@ -65,17 +65,18 @@
 
 (defn get-value
   [^Repository repository ^RevTree tree k]
-  (with-open [reader (.newObjectReader repository)
-              tw (doto (TreeWalk. repository)
-                   (.addTree tree)
-                   (.setRecursive true))]
-    (loop []
-      (if (.next tw)
-        (let [path (.getPathString tw)]
-          (if (= path k)
-            (let [obj (.getObjectId tw 0)
-                  blob (.openStream (.open reader obj))
-                  data (slurp blob)]
-              (json/read-str data))
-            (recur)))
-        nil))))
+  (when tree
+    (with-open [reader (.newObjectReader repository)
+                tw (doto (TreeWalk. repository)
+                     (.addTree tree)
+                     (.setRecursive true))]
+      (loop []
+        (if (.next tw)
+          (let [path (.getPathString tw)]
+            (if (= path k)
+              (let [obj (.getObjectId tw 0)
+                    blob (.openStream (.open reader obj))
+                    data (slurp blob)]
+                (json/read-str data))
+              (recur)))
+          nil)))))

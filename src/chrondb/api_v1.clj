@@ -206,25 +206,28 @@
             value-reader
             read-value]}
    ks]
-  (let [reader (.newObjectReader repository)
-        ;; Map db/created-at to db/created-at for tree lookup
-        paths (map #(if (= % "db/created-at") "db/created-at" %) ks)
-        new-filter (PathFilterGroup/createFromStrings ^"[Ljava.lang.String;" (into-array paths))
-        tw (doto (TreeWalk. repository)
-             (.addTree tree)
-             (.setRecursive true)
-             (.setFilter new-filter))]
-    (loop [result {}]
-      (if (.next tw)
-        (let [path (.getPathString tw)
-              obj (.getObjectId tw 0)]
-          (if (or (= (ObjectId/zeroId) obj)
-                  (= (.getFileMode tw 0) FileMode/TREE))
-            (recur result)
-            (let [v (with-open [in ^AutoCloseable (value-reader (.openStream (.open reader obj)))]
-                     (read-value in))]
-              (recur (assoc result path v)))))
-        result))))
+  (if (empty? ks)
+    {}
+    (let [reader (.newObjectReader repository)
+          ;; Map db/created-at to db/created-at for tree lookup
+          paths (map #(if (= % "db/created-at") "db/created-at" %) ks)
+          new-filter (PathFilterGroup/createFromStrings ^"[Ljava.lang.String;" (into-array String paths))
+          tw (doto (TreeWalk. repository)
+               (.addTree tree)
+               (.setRecursive true)
+               (.setFilter new-filter))]
+      (loop [result {}]
+        (if (.next tw)
+          (let [path (.getPathString tw)
+                obj (.getObjectId tw 0)]
+            (if (or (= (ObjectId/zeroId) obj)
+                    (= (.getFileMode tw 0) FileMode/TREE)
+                    (not (some #(= path %) ks))) ; Only include exact path matches
+              (recur result)
+              (let [v (with-open [in ^AutoCloseable (value-reader (.openStream (.open reader obj)))]
+                       (read-value in))]
+                (recur (assoc result path v)))))
+          result)))))
 
 (defn save
   [{::keys [^Repository repository value-writer write-value]
