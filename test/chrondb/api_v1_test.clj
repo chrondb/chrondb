@@ -1,9 +1,7 @@
 (ns chrondb.api-v1-test
-  (:require [clojure.test :refer :all]
-            [clojure.data.json :as json]
-            [clojure.pprint :as pp]
+  (:require [clojure.test :refer [deftest is testing]]
             [chrondb.api-v1 :as api-v1])
-  (:import (java.time Clock Instant)))
+  (:import (java.time Clock)))
 
 (deftest tree-structure-initial
   (binding [api-v1/*clock* (proxy [Clock] []
