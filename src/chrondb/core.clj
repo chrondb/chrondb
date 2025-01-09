@@ -1,10 +1,12 @@
 (ns chrondb.core
   (:require [chrondb.func :as func]
             [chrondb.search.index :as index]
+            [chrondb.config :as config]
             [clucie.core :as index-core]
             [talltale.core :as faker])
-  (:import (org.eclipse.jgit.lib Repository)
-           (org.eclipse.jgit.revwalk RevTree)))
+  (:import (org.eclipse.jgit.lib Repository Constants)
+           (org.eclipse.jgit.revwalk RevTree RevWalk))
+  (:gen-class))
 
 (def test-search-username ((faker/person :en) :username))
 
@@ -24,3 +26,48 @@
   [index-store _]
   (let [search-result (index-core/phrase-search index-store {:username test-search-username} 10 index/analyzer 0 5)]
     (str "search out:" search-result)))
+
+(def chrondb-struct-value
+  [{:username ((faker/person :en) :username)
+    :age      ((faker/person :en) :age)}
+   {:username ((faker/person :en) :username)
+    :age      ((faker/person :en) :age)}
+   {:username ((faker/person :en) :username)
+    :age      ((faker/person :en) :age)}
+   {:username ((faker/person :en) :username)
+    :age      ((faker/person :en) :age)}
+   {:username ((faker/person :en) :username)
+    :age      ((faker/person :en) :age)}])
+
+(def chrondb-struct-value-merged
+  (conj chrondb-struct-value
+        {:username test-search-username
+         :age      ((faker/person :en) :age)}))
+
+(defn get-head-tree
+  [^Repository repository]
+  (when-let [head (.resolve repository Constants/HEAD)]
+    (with-open [walk (RevWalk. repository)]
+      (let [commit (.parseCommit walk head)]
+        (.getTree commit)))))
+
+(defn -main
+  "Main entry point for the application."
+  [& args]
+  (println "args:" args)
+  (let [repository (create-repository "test-repo")
+        index-store (index/store :type "memory")
+        my-key "my-key"]
+
+    ;; chrondb save
+    (save repository nil my-key chrondb-struct-value-merged)
+    
+    ;; chrondb find by key
+    (let [tree (get-head-tree repository)]
+      (println "find-by-key:" (get-value repository tree my-key)))
+
+    ;; lucene index test
+    (index-core/add! index-store chrondb-struct-value-merged [:age :username] index/analyzer)
+    (println
+     "search out:"
+     (index-core/phrase-search index-store {:username test-search-username} 10 index/analyzer 0 5))))

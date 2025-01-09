@@ -1,15 +1,11 @@
 (ns chrondb.search.index
-  (:require [clucie.analysis :as analysis]
-            [clucie.store :as store]))
+  (:require [clucie.core :as clucie]
+            [clucie.store :as store]
+            [clucie.analysis :as analysis]))
 
-(def analyzer
-  "lucene analyzer"
-  (analysis/standard-analyzer))
+(def analyzer (analysis/standard-analyzer))
 
 (defn store
-  "lucene store (memory or disk), if the type is other than `memory` it must be the path that will be saved"
   [& {:keys [type]
       :or {type "memory"}}]
-  (if (identical? type "memory")
-    (store/memory-store)
-    (store/disk-store type)))
+  (store/memory-store))
