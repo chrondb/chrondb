@@ -1,7 +1,7 @@
 (ns chrondb.func
   (:require [clojure.data.json :as json])
   (:import (org.eclipse.jgit.internal.storage.dfs InMemoryRepository$Builder DfsRepositoryDescription)
-           (org.eclipse.jgit.lib CommitBuilder Constants FileMode ObjectId Repository TreeFormatter)
+           (org.eclipse.jgit.lib CommitBuilder Constants FileMode ObjectId Repository TreeFormatter PersonIdent)
            (org.eclipse.jgit.revwalk RevTree)
            (org.eclipse.jgit.treewalk TreeWalk)))
 
@@ -44,7 +44,10 @@
           ;; Create and insert commit
           commit (doto (CommitBuilder.)
                   (.setTreeId root-tree-id)
-                  (.setMessage (str "save " k)))
+                  (.setMessage (str "save " k))
+                  (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost"))
+                  (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost"))
+                  (.setEncoding Constants/CHARACTER_ENCODING))
           _ (when branch
               (.setParentId commit branch))
           commit-id (.insert object-inserter commit)]
