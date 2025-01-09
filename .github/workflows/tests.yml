@@ -1,14 +1,46 @@
 name: Tests
-on: [push, pull_request]
+
+on:
+  push:
+  pull_request:
+
 jobs:
-  tests:
+  test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2.3.4
-      - uses: DeLaGuardo/setup-graalvm@master
+      - uses: actions/checkout@v4
+      - name: Setup GraalVM
+        uses: graalvm/setup-graalvm@v1
         with:
-          graalvm-version: "21.0.0.java11"
-      - uses: DeLaGuardo/setup-clojure@master
+          java-version: '17'
+          distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Clojure tools
+        uses: DeLaGuardo/setup-clojure@12.1
         with:
-          tools-deps: "1.10.1.469"
-      - run: clojure -X:test
+          cli: latest
+      - name: Run tests
+        run: clojure -M:test
+
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      JAVA_OPTS: "-XX:+UseG1GC -Xmx3g -Xms1g"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '17'
+          distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Clojure tools
+        uses: DeLaGuardo/setup-clojure@12.1
+        with:
+          cli: latest
+      - name: List test directory
+        run: |
+          ls -R test/
+      - name: Run coverage
+        run: |
+          clojure -J-XX:+UseG1GC -J-Xmx3g -J-Xms1g -M:coverage --ns-regex "chrondb.*" --test-ns-regex "chrondb.*-test"
