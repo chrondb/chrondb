@@ -28,5 +28,13 @@
                                   :jar "chrondb.jar"
                                   :main-class "chrondb.core"
                                   :sync-pom true}}
-             :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2023.12.15"}}
+             :coverage {:extra-paths ["test"]
+                        :extra-deps {cloverage/cloverage {:mvn/version "1.2.4"}}
+                        :main-opts ["-m" "cloverage.coverage"
+                                   "--src-ns-path" "src"
+                                   "--test-ns-path" "test"
+                                   "--ns-regex" "chrondb.*"
+                                   "--test-ns-regex" "chrondb.*-test"]}
+             :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2023.12.15"}
+                                 jonase/eastwood {:mvn/version "1.4.0"}}
                     :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}}}
