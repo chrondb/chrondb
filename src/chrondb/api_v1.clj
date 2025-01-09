@@ -74,7 +74,7 @@
   [{::keys [path]}]
   (-> *memory-repository
     (swap! (fn [memory-repository]
-             (if-let [repo (get memory-repository path)]
+             (if (get memory-repository path)
                memory-repository
                (let [builder (doto (InMemoryRepository$Builder.)
                              (.setRepositoryDescription (DfsRepositoryDescription. path)))
@@ -174,10 +174,10 @@
     (letfn [(any->clj [x]
               (try
                 (commit->clj (.parseCommit rw x))
-                (catch IncorrectObjectTypeException ex
+                (catch IncorrectObjectTypeException _
                   (try
                     (tree->clj (.parseTree rw x))
-                    (catch IncorrectObjectTypeException ex
+                    (catch IncorrectObjectTypeException _
                       (blob->clj (.lookupBlob rw x)))))))
             (blob->clj [^RevBlob blob]
               {:mode :blob
@@ -196,7 +196,7 @@
                                 :file-mode (str file-mode)
                                 :node      (any->clj object-id)}))
                  :id    (second (string/split (str tree) #"\s"))}
-                (catch NullPointerException ex
+                (catch NullPointerException _
                   {:mode :tree})))]
       (let [commit (.parseCommit repository (.resolve repository Constants/HEAD))]
         (commit->clj commit)))))
