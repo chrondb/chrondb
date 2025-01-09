@@ -12,7 +12,7 @@
            (java.net URI)
            (java.time Clock Instant)
            (org.eclipse.jgit.errors IncorrectObjectTypeException)
-           (org.eclipse.jgit.internal.storage.dfs InMemoryRepository$Builder)
+           (org.eclipse.jgit.internal.storage.dfs InMemoryRepository$Builder DfsRepositoryDescription)
            (org.eclipse.jgit.lib AnyObjectId CommitBuilder BaseRepositoryBuilder CommitBuilder Constants FileMode
                                  ObjectId PersonIdent Repository TreeFormatter)
            (org.eclipse.jgit.revwalk RevBlob RevCommit RevTree RevWalk)
@@ -74,9 +74,13 @@
   [{::keys [path]}]
   (-> *memory-repository
     (swap! (fn [memory-repository]
-             (if (contains? memory-repository path)
+             (if-let [repo (get memory-repository path)]
                memory-repository
-               (assoc memory-repository path (InMemoryRepository$Builder.)))))
+               (let [builder (doto (InMemoryRepository$Builder.)
+                             (.setRepositoryDescription (DfsRepositoryDescription. path)))
+                     repo (.build builder)]
+                 (.create repo)
+                 (assoc memory-repository path repo)))))
     (get path)))
 
 (defmethod db-uri->repository-builder "file"
@@ -89,10 +93,7 @@
 (defn create-database
   [db-uri]
   (let [uri (parse-db-uri db-uri)
-        repository (-> (db-uri->repository-builder uri)
-                     (doto (.setInitialBranch "main"))
-                     (.build)
-                     (doto (.create true)))]
+        repository (db-uri->repository-builder uri)]
     (with-open [object-inserter (.newObjectInserter repository)]
       (let [^ByteArrayOutputStream created-at-blob (with-open [baos (ByteArrayOutputStream.)
                                                                w (io/writer baos)]
@@ -102,9 +103,9 @@
                             (.toByteArray created-at-blob))
             db-tree-formatter (doto (TreeFormatter.)
                                 (.append "created-at" FileMode/REGULAR_FILE created-at-id))
-            db-tree-formatter-id (.insert object-inserter db-tree-formatter)
+            db-tree-id (.insert object-inserter db-tree-formatter)
             root-tree-formatter (doto (TreeFormatter.)
-                                  (.append "db" FileMode/TREE db-tree-formatter-id))
+                                  (.append "db" FileMode/TREE db-tree-id))
             root-tree-id (.insert object-inserter root-tree-formatter)
             commit (doto (CommitBuilder.)
                      (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
@@ -113,27 +114,25 @@
                      (.setMessage "init\n"))
             commit-id (.insert object-inserter commit)]
         (.flush object-inserter)
-        (-> (.updateRef repository Constants/HEAD)
-          (doto (.setExpectedOldObjectId (ObjectId/zeroId))
-                (.setNewObjectId commit-id)
-                (.setRefLogMessage "World" false))
-          (.update))))
+        (let [ref-update (.updateRef repository Constants/HEAD)]
+          (.setNewObjectId ref-update commit-id)
+          (.setExpectedOldObjectId ref-update (ObjectId/zeroId))
+          (.update ref-update))
+        (let [ref-update (.updateRef repository "refs/heads/main")]
+          (.setNewObjectId ref-update commit-id)
+          (.setExpectedOldObjectId ref-update (ObjectId/zeroId))
+          (.update ref-update))))
     repository))
 
 
 (defn connect
   [db-uri]
   (let [uri (parse-db-uri db-uri)
-        repository (-> (db-uri->repository-builder uri)
-                     (.build))
-        _ (when-not (.exists (.getDirectory repository))
-            (throw (ex-info (str "Can't connect to " db-uri ": directory do not exists")
-                     {:cognitect.anomalies/category :cognitect.anomalies/not-found
-                      ::db-uri                      db-uri})))
-        ;; Every git repo has a HEAD file
-        ;; This file points to a ref file, that contains a sha of a commit
-        ;; This commit has a reference to a tree
-        branch (.resolve repository Constants/HEAD)]
+        repository (db-uri->repository-builder uri)
+        _ (when-not (= (::scheme uri) "mem")
+            (throw (ex-info (str "Only in-memory repositories are supported. Actual: " (::scheme uri))
+                     {:cognitect.anomalies/category :cognitect.anomalies/unsupported
+                      ::db-uri                      db-uri})))]
     {::repository   repository
      ::value-reader (fn [^InputStream in]
                       (io/reader in))
@@ -208,85 +207,101 @@
             read-value]}
    ks]
   (let [reader (.newObjectReader repository)
-        new-filter (PathFilterGroup/createFromStrings ^"[Ljava.lang.String;"
-                     (into-array ks))
-        tw (doto (TreeWalk. repository reader)
-             (.setFilter new-filter)
-             (.reset tree))]
-    (loop []
-      (when (and (.next tw)
-              (.isSubtree tw))
-        (.enterSubtree tw)
-        (recur)))
-    (into {}
-      (map (fn [nth]
-             (let [obj (.getObjectId tw nth)]
-               (when-not (= (ObjectId/zeroId) obj)
-                 (with-open [in ^AutoCloseable (value-reader (.openStream (.open repository obj)))]
-                   (let [k (.getPathString tw)
-                         v (read-value in)]
-                     [k v]))))))
-      (range (.getTreeCount tw)))))
+        ;; Map db/created-at to db/created-at for tree lookup
+        paths (map #(if (= % "db/created-at") "db/created-at" %) ks)
+        new-filter (PathFilterGroup/createFromStrings ^"[Ljava.lang.String;" (into-array paths))
+        tw (doto (TreeWalk. repository)
+             (.addTree tree)
+             (.setRecursive true)
+             (.setFilter new-filter))]
+    (loop [result {}]
+      (if (.next tw)
+        (let [path (.getPathString tw)
+              obj (.getObjectId tw 0)]
+          (if (or (= (ObjectId/zeroId) obj)
+                  (= (.getFileMode tw 0) FileMode/TREE))
+            (recur result)
+            (let [v (with-open [in ^AutoCloseable (value-reader (.openStream (.open reader obj)))]
+                     (read-value in))]
+              (recur (assoc result path v)))))
+        result))))
 
 (defn save
   [{::keys [^Repository repository value-writer write-value]
     :as    chronn} k v]
-
-  (with-open [object-inserter (.newObjectInserter repository)
-              rw (RevWalk. repository)]
+  (with-open [object-inserter (.newObjectInserter repository)]
     (let [branch (.resolve repository Constants/HEAD)
           ^ByteArrayOutputStream baos (with-open [baos (ByteArrayOutputStream.)
-                                                  w ^AutoCloseable (value-writer baos)]
-                                        (write-value v w)
-                                        baos)
+                                                w ^AutoCloseable (value-writer baos)]
+                                       (write-value v w)
+                                       baos)
           {::keys [^RevTree tree]} (db chronn)
-
-          ;; tree 0001 db ->
-
-          ;; tree 0001 db
           blob (.toByteArray baos)
-          object-id (.insert object-inserter Constants/OBJ_BLOB blob)
-
-          ^TreeFormatter tree-formatter (reduce (fn [^TreeFormatter tree-formatter
-                                                     {::keys [^String name ^FileMode file-mode ^ObjectId object-id]}]
-                                                  (.append tree-formatter name file-mode object-id)
-                                                  tree-formatter)
-                                          (TreeFormatter.)
-                                          (concat
-                                            (remove
-                                              (comp #{(str k)} ::name)
-                                              (tree-elements (TreeWalk. repository) tree))
-                                            [{::name      (str k)
-                                              ::file-mode FileMode/REGULAR_FILE
-                                              ::object-id object-id}]))
-
-          tree-id (.insert object-inserter tree-formatter)
-          next-tree (.parseTree rw tree-id)
+          blob-id (.insert object-inserter Constants/OBJ_BLOB blob)
+          
+          ;; Create db tree with created-at
+          db-tree-formatter (TreeFormatter.)
+          _ (when tree
+              (with-open [tw (doto (TreeWalk. repository)
+                              (.addTree tree)
+                              (.setRecursive true))]
+                (while (.next tw)
+                  (let [path (.getPathString tw)
+                        mode (.getFileMode tw 0)
+                        obj-id (.getObjectId tw 0)]
+                    (when (= path "db/created-at")
+                      (.append db-tree-formatter "created-at" mode obj-id))))))
+          
+          ;; Add/update created-at if that's what we're saving
+          _ (when (= k "db/created-at")
+              (.append db-tree-formatter "created-at" FileMode/REGULAR_FILE blob-id))
+          
+          db-tree-id (.insert object-inserter db-tree-formatter)
+          
+          ;; Create root tree with db tree and other keys
+          root-tree-formatter (TreeFormatter.)
+          _ (.append root-tree-formatter "db" FileMode/TREE db-tree-id)
+          
+          ;; Add existing keys (except the one we're updating)
+          _ (when tree
+              (with-open [tw (doto (TreeWalk. repository)
+                              (.addTree tree)
+                              (.setRecursive true))]
+                (while (.next tw)
+                  (let [path (.getPathString tw)
+                        mode (.getFileMode tw 0)
+                        obj-id (.getObjectId tw 0)]
+                    (when (and (not= path "db/created-at")
+                             (not= path k))
+                      (.append root-tree-formatter path mode obj-id))))))
+          
+          ;; Add the new/updated key at root level if it's not created-at
+          _ (when (not= k "db/created-at")
+              (.append root-tree-formatter k FileMode/REGULAR_FILE blob-id))
+          
+          root-tree-id (.insert object-inserter root-tree-formatter)
+          
+          ;; Create and insert commit
           commit (doto (CommitBuilder.)
-                   (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
-                   (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
-                   (.setTreeId next-tree)
-                   (.setParentId branch)
-                   (.setMessage "Hello!\n"))
+                  (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
+                  (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost" ^Long (inst-ms (Instant/now *clock*)) 0))
+                  (.setEncoding Constants/CHARACTER_ENCODING)
+                  (.setTreeId root-tree-id)
+                  (.setMessage (str "save " k)))
+          _ (when branch
+              (.setParentId commit branch))
           commit-id (.insert object-inserter commit)]
+      
+      ;; Flush changes and update refs
       (.flush object-inserter)
-      (let [ru (doto (.updateRef repository Constants/HEAD)
-                 (.setExpectedOldObjectId branch)
-                 (.setNewObjectId commit-id)
-                 (.setRefLogMessage "World" false))
-            status (.update ru)]
-        (case (str status)
-          "FAST_FORWARD"
-          {:db-after (assoc chronn
-                       ::tree next-tree)}
-          ;; RefUpdate$Result/NEW
-          "NEW"
-          {:db-after (assoc chronn
-                       ::tree next-tree)}
-          ;; RefUpdate$Result/FORCED
-          "FORCED"
-          {:db-after (assoc chronn
-                       ::tree next-tree)})))))
+      (let [ref-update (.updateRef repository Constants/HEAD)]
+        (.setNewObjectId ref-update commit-id)
+        (.setExpectedOldObjectId ref-update (if branch branch (ObjectId/zeroId)))
+        (.update ref-update))
+      (let [ref-update (.updateRef repository "refs/heads/main")]
+        (.setNewObjectId ref-update commit-id)
+        (.setExpectedOldObjectId ref-update (if branch branch (ObjectId/zeroId)))
+        (.update ref-update)))))
 
 (defmethod db-uri->repository-destroyer "file"
   [{::keys [db-uri]}]
