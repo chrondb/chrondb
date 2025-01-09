@@ -29,8 +29,7 @@
   "I don't do a whole lot ... yet."
   [& args]
   (println "args:" args)
-  (let [chrondb-local-repo (func/path->repo config/chrondb-local-git-dir
-                                            :branch-name config/chrondb-local-repo-branch)
+  (let [chrondb-local-repo (func/create-repository :branch-name config/chrondb-local-repo-branch)
         index-store (index/store :type "memory")
         my-key "my-key"]
 

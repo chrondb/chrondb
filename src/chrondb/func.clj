@@ -2,84 +2,112 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clj-compress.core :as c]
-            [clj-jgit.porcelain :as jgit]
             [chrondb.config :as config])
-  (:import (java.io ByteArrayOutputStream File)
-           (org.eclipse.jgit.api Git)))
+  (:import (java.io ByteArrayOutputStream)
+           (org.eclipse.jgit.internal.storage.dfs InMemoryRepository$Builder DfsRepositoryDescription)
+           (org.eclipse.jgit.lib Repository PersonIdent ObjectId Constants FileMode RefUpdate$Result)
+           (org.eclipse.jgit.lib CommitBuilder TreeFormatter)
+           (org.eclipse.jgit.treewalk TreeWalk)
+           (org.eclipse.jgit.revwalk RevWalk)))
 
-(defn branch-current?
-  "compares the branch name"
-  [repo branch-name]
-  (if (= (jgit/git-branch-current repo) branch-name)
-    true false))
-
-(defn branch-checkout
-  "branch handling via checkout, if the branch does not exist it will be created"
-  [repo branch-name]
-  (cond
-    (.contains (jgit/git-branch-list repo) branch-name)
-    (jgit/git-branch-create repo branch-name :force? true))
-  (cond
-    (branch-current? repo branch-name)
-    (jgit/git-checkout repo :name branch-name)))
-
-(defn path->load-repo
-  "load existing repository"
-  [path & {:keys [branch-name]
-           :or {branch-name config/default-branch-name}}]
-  (let [repo (jgit/load-repo path)]
-    (branch-checkout repo branch-name)
+(defn create-repository
+  "Create a new in-memory repository"
+  [& {:keys [branch-name]
+      :or   {branch-name config/default-branch-name}}]
+  (let [repo (-> (InMemoryRepository$Builder.)
+                (.setRepositoryDescription (DfsRepositoryDescription. "chrondb"))
+                (.setInitialBranch branch-name)
+                (.build))]
+    (.create repo)
+    (with-open [inserter (.newObjectInserter repo)]
+      (let [tree-formatter (TreeFormatter.)
+            tree-id (.insert inserter tree-formatter)
+            commit (doto (CommitBuilder.)
+                    (.setTreeId tree-id)
+                    (.setAuthor (PersonIdent. "chrondb" "chrondb@localhost"))
+                    (.setCommitter (PersonIdent. "chrondb" "chrondb@localhost"))
+                    (.setMessage "Initial commit\n"))
+            commit-id (.insert inserter commit)]
+        (.flush inserter)
+        (let [ref-update (.updateRef repo (str "refs/heads/" branch-name))]
+          (.setNewObjectId ref-update commit-id)
+          (.setExpectedOldObjectId ref-update (ObjectId/zeroId))
+          (.update ref-update))
+        (let [ref-update (.updateRef repo Constants/HEAD)]
+          (.setNewObjectId ref-update commit-id)
+          (.setExpectedOldObjectId ref-update (ObjectId/zeroId))
+          (.update ref-update))))
     repo))
-
-(defn path->repo
-  "transform path in git repository, if it doesn't exist it will be created"
-  [path & {:keys [branch-name]
-           :or   {branch-name config/default-branch-name}}]
-  (if (.isDirectory (io/file path))
-    (path->load-repo path :branch-name branch-name)
-    (jgit/git-init :initial-branch branch-name :dir path)))
 
 (defn save
   "save (insert/update) information in the repository"
-  [^Git repo key value
-   & {:keys [branch-name msg commiter no-verify? sign? all?]
+  [^Repository repo key value
+   & {:keys [branch-name msg commiter]
       :or   {branch-name config/default-branch-name
              msg         "saving content"
-             commiter    {:name "chrondb-anonymous"}
-             no-verify?  true
-             sign?       false
-             all?        true}}]
-  (let [repo-git-dir  (-> repo .getRepository .getDirectory .toString)
-        repo-dir      (str repo-git-dir config/back-to-repo)
-        data-filename (str key config/file-ext)
-        data-filepath (str repo-dir data-filename)
-        data->str     (json/write-str value)]
-    ;; if it doesn't exist it will be created and cehckout
-    (branch-checkout repo branch-name)
-    ;; compress data
-    (c/compress-data (.getBytes data->str) data-filepath config/compressor-type)
-    ;; git add and commit
-    (jgit/git-add repo data-filename)
-    (jgit/git-commit repo (str msg ": " data-filename)
-                     :all? all?
-                     :no-verify? no-verify?
-                     :sign? sign?
-                     :commiter commiter)))
+             commiter    {:name "chrondb-anonymous"}}}]
+  (with-open [inserter (.newObjectInserter repo)
+              rw (RevWalk. repo)]
+    (let [ref-name (str "refs/heads/" branch-name)
+          current-ref (.exactRef repo ref-name)]
+      (when-not current-ref
+        (let [head-commit (.resolve repo Constants/HEAD)
+              ref-update (.updateRef repo ref-name)]
+          (.setNewObjectId ref-update head-commit)
+          (.setExpectedOldObjectId ref-update (ObjectId/zeroId))
+          (.update ref-update)))
+      (let [head-ref (.updateRef repo Constants/HEAD)]
+        (.link head-ref ref-name)
+        (.update head-ref)))
+
+    (let [data->str     (json/write-str value)
+          baos (ByteArrayOutputStream.)
+          _    (c/compress-data (.getBytes data->str) baos config/compressor-type)
+          blob-id      (.insert inserter Constants/OBJ_BLOB (.toByteArray baos))
+          head-commit  (when-let [head (.resolve repo Constants/HEAD)]
+                        (.parseCommit rw head))
+          old-tree     (when head-commit
+                        (.getTree head-commit))
+          tree-formatter (doto (TreeFormatter.)
+                          (.append (str key config/file-ext) FileMode/REGULAR_FILE blob-id))
+          tree-id      (.insert inserter tree-formatter)
+          head-id      (or (.resolve repo Constants/HEAD) (ObjectId/zeroId))
+          commit       (doto (CommitBuilder.)
+                        (.setTreeId tree-id)
+                        (.setParentId head-id)
+                        (.setAuthor (PersonIdent. (:name commiter) "chrondb@localhost"))
+                        (.setCommitter (PersonIdent. (:name commiter) "chrondb@localhost"))
+                        (.setMessage (str msg "\n")))
+          commit-id    (.insert inserter commit)]
+      (.flush inserter)
+      (let [ref-update (.updateRef repo Constants/HEAD)]
+        (.setNewObjectId ref-update commit-id)
+        (.setExpectedOldObjectId ref-update head-id)
+        (.update ref-update)))))
 
 (defn find-by-key
   "find by key registered in the git repository"
-  [^Git repo key]
-  (let [repo-git-dir (-> repo .getRepository .getDirectory .toString)
-        repo-dir (str repo-git-dir config/back-to-repo)
-        data-filename (str key config/file-ext)
-        data-filepath (str repo-dir data-filename)
-        output (ByteArrayOutputStream.)]
-    (when (.exists (io/file data-filepath))
-      (c/decompress-data data-filepath output config/compressor-type)
-      (json/read-str (.toString output)))))
+  [^Repository repo key]
+  (when-let [head (.resolve repo Constants/HEAD)]
+    (with-open [reader (.newObjectReader repo)
+                rw (RevWalk. repo)]
+      (let [commit (.parseCommit rw head)
+            tree (.getTree commit)
+            tree-walk (doto (TreeWalk. repo)
+                       (.addTree tree)
+                       (.setRecursive true))
+            file-name (str key config/file-ext)]
+        (loop []
+          (when (.next tree-walk)
+            (if (= (.getNameString tree-walk) file-name)
+              (let [blob-id (.getObjectId tree-walk 0)
+                    blob (.open reader blob-id)
+                    compressed (.getCachedBytes blob)
+                    baos (ByteArrayOutputStream.)]
+                (c/decompress-data compressed baos config/compressor-type)
+                (json/read-str (.toString baos)))
+              (recur))))))))
 
 (defn delete-database
-  [path]
-  (let [repo (jgit/load-repo path)]
-    (doseq [^File f (-> repo .getRepository .getDirectory .getParentFile file-seq reverse)]
-      (.delete f))))
+  [^Repository repo]
+  (.close repo))
