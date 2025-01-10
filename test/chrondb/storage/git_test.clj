@@ -23,12 +23,12 @@
   (.getFullMessage (first (iterator-seq (.iterator (.call (.log git)))))))
 
 (deftest test-create-repository
-  (testing "Creating a new Git repository"
+  (testing "Creating a new bare Git repository"
     (let [repo (git/create-repository test-repo-path)
           git-api (Git. repo)]
       (is (instance? Git git-api))
       (is (.exists (io/file test-repo-path)))
-      (is (.exists (io/file (str test-repo-path "/.git"))))
+      (is (.isBare repo))
       (is (= 1 (count-commits git-api)))
       (is (= "Initial empty commit" (get-last-commit-message git-api))))))
 
