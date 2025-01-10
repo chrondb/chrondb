@@ -2,10 +2,7 @@
   (:require [chrondb.storage.protocol :as protocol]
             [clojure.data.json :as json]
             [clojure.java.io :as io])
-  (:import [org.eclipse.jgit.lib Repository ObjectInserter ObjectId TreeFormatter FileMode]
-           [org.eclipse.jgit.storage.file FileRepositoryBuilder]
-           [org.eclipse.jgit.lib RefUpdate]
-           [org.eclipse.jgit.lib ObjectReader]
+  (:import [org.eclipse.jgit.lib Repository ObjectInserter TreeFormatter ObjectReader]
            [org.eclipse.jgit.revwalk RevWalk]
            [org.eclipse.jgit.treewalk TreeWalk]
            [org.eclipse.jgit.api Git]))
@@ -60,7 +57,7 @@
             (.call))
         doc)))
 
-  (get-document [_ id]
+  (get-document [_ _id]
     (let [^ObjectReader reader (.newObjectReader repo)
           ^RevWalk walk (RevWalk. reader)
           commit (.parseCommit walk (.resolve repo "HEAD"))
@@ -70,7 +67,7 @@
               content (String. (.open reader blob-id) "UTF-8")]
           (json/read-str content :key-fn keyword)))))
 
-  (delete-document [_ id]
+  (delete-document [_ _id]
     (let [^ObjectInserter inserter (.newObjectInserter repo)
           tree (TreeFormatter.)
           tree-id (.insert inserter tree)
@@ -91,7 +88,8 @@
       true))
 
   (close [_]
-    (.close repo)))
+    (.close repo)
+    nil))
 
 (defn create-git-storage [path]
   (println "Criando storage...")

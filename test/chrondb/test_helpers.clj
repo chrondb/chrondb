@@ -6,12 +6,21 @@
            [java.nio.file.attribute FileAttribute]))
 
 (defn create-temp-dir []
-  (str (Files/createTempDirectory "chrondb-test" (make-array FileAttribute 0))))
+  (let [dir (str (Files/createTempDirectory "chrondb-test" (make-array FileAttribute 0)))]
+    (-> (io/file dir)
+        (.deleteOnExit))
+    dir))
 
 (defn delete-directory [path]
   (when (.exists (io/file path))
-    (doseq [f (reverse (file-seq (io/file path)))]
-      (io/delete-file f true))))
+    (try
+      (doseq [f (reverse (file-seq (io/file path)))]
+        (try
+          (io/delete-file f true)
+          (catch Exception e
+            (println "Warning: Failed to delete file" (.getPath f) "-" (.getMessage e)))))
+      (catch Exception e
+        (println "Warning: Failed to clean up directory" path "-" (.getMessage e))))))
 
 (defmacro with-test-data [[storage-sym index-sym] & body]
   `(let [index-dir# (create-temp-dir)
@@ -22,5 +31,6 @@
        (finally
          (try
            (.close ~index-sym)
-           (catch Exception _#))
+           (catch Exception e#
+             (println "Warning: Failed to close index -" (.getMessage e#))))
          (delete-directory index-dir#))))) 

@@ -34,10 +34,7 @@
    :name (fake/full-name :male :en)
    :email (fake/email)
    :age (+ 18 (rand-int 50))
-   :address {:street (str (rand-int 999) " " (fake/street))
-             :city (fake/city)
-             :country "USA"
-             :zip (fake/postal-code)}})
+   :address (fake/address "USA")})
 
 (defn save-user [chrondb user]
   (let [saved (storage/save-document (:storage chrondb) user)]
@@ -47,7 +44,7 @@
 (defn search-users [chrondb query]
   (index/search (:index chrondb) query))
 
-(defn -main [& args]
+(defn -main [_args]
   (let [chrondb (create-chrondb)]
     (println "\nGerando e salvando 10 usuários aleatórios...")
     (doseq [_ (range 10)]
