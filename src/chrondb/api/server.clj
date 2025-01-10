@@ -1,9 +1,17 @@
 (ns chrondb.api.server
+  "HTTP server implementation for ChronDB.
+   Provides middleware for JSON request/response handling and server startup functionality."
   (:require [chrondb.api.v1.routes :as routes]
             [ring.adapter.jetty :as jetty]
             [clojure.data.json :as json]))
 
-(defn wrap-json-body-custom [handler]
+(defn wrap-json-body-custom
+  "Custom middleware for parsing JSON request bodies.
+   Handles both string and input stream bodies.
+   Parameters:
+   - handler: The Ring handler to wrap
+   Returns: A new handler that parses JSON request bodies"
+  [handler]
   (fn [request]
     (if-let [body (:body request)]
       (try
@@ -16,7 +24,12 @@
            :body {:error (str "Invalid JSON: " (.getMessage e))}}))
       (handler request))))
 
-(defn wrap-json-response [_]
+(defn wrap-json-response
+  "Middleware for converting response bodies to JSON.
+   Parameters:
+   - _: Unused parameter (kept for middleware chain compatibility)
+   Returns: A handler that converts response bodies to JSON"
+  [_]
   (fn [response]
     (if (coll? (:body response))
       (-> response
@@ -24,11 +37,24 @@
           (assoc-in [:headers "Content-Type"] "application/json"))
       response)))
 
-(defn create-app [storage index]
+(defn create-app
+  "Creates the main Ring application with all middleware.
+   Parameters:
+   - storage: The storage implementation
+   - index: The index implementation
+   Returns: A Ring handler with all middleware applied"
+  [storage index]
   (-> (routes/create-routes storage index)
       wrap-json-body-custom
       wrap-json-response))
 
-(defn start-server [storage index port]
+(defn start-server
+  "Starts the HTTP server for ChronDB.
+   Parameters:
+   - storage: The storage implementation
+   - index: The index implementation
+   - port: The port number to listen on
+   Returns: The Jetty server instance"
+  [storage index port]
   (println "Starting server on port" port)
   (jetty/run-jetty (create-app storage index) {:port port :join? false})) 
