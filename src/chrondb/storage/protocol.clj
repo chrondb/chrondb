@@ -1,15 +1,31 @@
-(ns chrondb.storage.protocol)
+(ns chrondb.storage.protocol
+  "Protocol definition for ChronDB storage implementations.
+   This protocol defines the core operations that any storage backend must implement.")
 
 (defprotocol Storage
-  "Protocol defining the storage operations for ChronDB"
+  "Protocol defining the storage operations for ChronDB.
+   Any storage implementation must provide these core operations
+   for document persistence and retrieval."
+
   (save-document [this doc]
-    "Save a document to storage. Returns the saved document.")
-  
+    "Saves a document to the storage system.
+     Parameters:
+     - doc: A map containing the document data (must include an :id field)
+     Returns: The saved document with any system-generated fields.")
+
   (get-document [this id]
-    "Retrieve a document by its ID. Returns nil if not found.")
-  
+    "Retrieves a document from storage by its ID.
+     Parameters:
+     - id: The unique identifier of the document
+     Returns: The document if found, nil otherwise.")
+
   (delete-document [this id]
-    "Delete a document by its ID. Returns true if successful, false otherwise.")
-  
+    "Removes a document from storage.
+     Parameters:
+     - id: The unique identifier of the document to delete
+     Returns: true if document was deleted, false if document was not found.")
+
   (close [this]
-    "Close any resources associated with the storage.")) 
+    "Closes the storage system and releases any resources.
+     Should be called when the storage system is no longer needed.
+     Returns: nil on success.")) 
