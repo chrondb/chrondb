@@ -13,7 +13,8 @@
              org.eclipse.jgit/org.eclipse.jgit {:mvn/version "6.7.0.202309050840-r"}
              talltale/talltale                  {:mvn/version "0.4.3"}
              org.slf4j/slf4j-api               {:mvn/version "2.0.9"}
-             org.slf4j/slf4j-simple           {:mvn/version "2.0.9"}}
+             org.slf4j/slf4j-simple           {:mvn/version "2.0.9"}
+             environ/environ                   {:mvn/version "1.2.0"}}
  :aliases   {:test    {:extra-paths ["test"]
                        :extra-deps  {io.github.cognitect-labs/test-runner
                                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
@@ -29,4 +30,15 @@
                        :exec-fn hf.depstar/uberjar
                        :exec-args {:aot true
                                    :jar "target/chrondb.jar"
-                                   :main-class chrondb.core}}}}
+                                   :main-class chrondb.core}}
+             :coverage {:extra-paths ["test"]
+                        :extra-deps {cloverage/cloverage {:mvn/version "1.2.4"}}
+                        :main-opts ["-m" "cloverage.coverage"
+                                    "--src-ns-path" "src"
+                                    "--test-ns-path" "test"
+                                    "--ns-regex" "chrondb.*"
+                                    "--test-ns-regex" "chrondb.*test"
+                                    "--fail-threshold" "65"
+                                    "--codecov"
+                                    "--html"
+                                    "--output" "target/coverage"]}}}
