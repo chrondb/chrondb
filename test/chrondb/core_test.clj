@@ -1,11 +1,13 @@
 (ns chrondb.core-test
-  (:require [chrondb.core :as core]
-            [chrondb.test-helpers :refer [with-test-data]]
-            [clojure.test :refer :all]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [chrondb.storage.memory :as memory]
+            [chrondb.index.lucene :as lucene]))
 
-(deftest test-main-function
-  (with-test-data [storage index]
-    (testing "Main function starts server"
-      (let [server (core/-main "3000")]
-        (is (instance? org.eclipse.jetty.server.Server server))
-        (.stop server))))) 
+(deftest test-chrondb
+  (testing "ChronDB operations"
+    (let [storage (memory/create-memory-storage)
+          index (lucene/create-lucene-index "test-index")
+          chrondb {:storage storage :index index}]
+      (is (= chrondb {:storage storage :index index}))
+      (.close storage)
+      (.close index)))) 

@@ -1,13 +1,14 @@
 (ns chrondb.index.lucene
   (:require [chrondb.index.protocol :as protocol]
             [clojure.data.json :as json])
-  (:import (org.apache.lucene.store FSDirectory)
-           (org.apache.lucene.analysis.standard StandardAnalyzer)
-           (org.apache.lucene.document Document Field$Store TextField StringField)
-           (org.apache.lucene.index IndexWriter IndexWriterConfig DirectoryReader IndexWriterConfig$OpenMode Term)
-           (org.apache.lucene.search IndexSearcher BooleanQuery$Builder BooleanClause$Occur TermQuery ScoreDoc)
-           (org.apache.lucene.queryparser.classic QueryParser)
-           (java.nio.file Paths)))
+  (:import [org.apache.lucene.store FSDirectory]
+           [org.apache.lucene.analysis.standard StandardAnalyzer]
+           [org.apache.lucene.document Document StringField TextField Field$Store]
+           [org.apache.lucene.index IndexWriter IndexWriterConfig DirectoryReader Term]
+           [org.apache.lucene.search IndexSearcher BooleanQuery$Builder BooleanClause$Occur ScoreDoc]
+           [org.apache.lucene.queryparser.classic QueryParser]
+           [java.nio.file Paths]
+           [org.apache.lucene.index IndexWriterConfig$OpenMode]))
 
 (defn- create-document [doc]
   (let [lucene-doc (Document.)]
@@ -22,12 +23,14 @@
   (json/read-str (.get doc "content") :key-fn keyword))
 
 (defn- create-query [query-str]
-  (let [builder (BooleanQuery$Builder.)]
-    (doseq [field ["id" "name" "content"]]
-      (.add builder
-            (.parse (QueryParser. field (StandardAnalyzer.)) query-str)
-            BooleanClause$Occur/SHOULD))
-    (.build builder)))
+  (if (or (nil? query-str) (empty? query-str))
+    nil
+    (let [builder (BooleanQuery$Builder.)]
+      (doseq [field ["id" "name" "content"]]
+        (.add builder
+              (.parse (QueryParser. field (StandardAnalyzer.)) query-str)
+              BooleanClause$Occur/SHOULD))
+      (.build builder))))
 
 (defn- refresh-reader [^DirectoryReader reader ^IndexWriter writer]
   (let [new-reader (DirectoryReader/openIfChanged reader writer)]
@@ -60,18 +63,20 @@
         (reset! searcher-atom (IndexSearcher. new-reader)))))
 
   (search [_ query-str]
-    (let [query (create-query query-str)
-          hits (.search @searcher-atom query 10)
-          docs (for [^ScoreDoc hit (.scoreDocs hits)]
-                 (-> (.doc @searcher-atom (.doc hit))
-                     doc->map))]
-      docs))
+    (if-let [query (create-query query-str)]
+      (let [hits (.search @searcher-atom query 10)
+            docs (for [^ScoreDoc hit (.scoreDocs hits)]
+                   (-> (.doc @searcher-atom (.doc hit))
+                       doc->map))]
+        docs)
+      []))
 
   java.io.Closeable
   (close [_]
     (.close writer)
     (.close @reader-atom)
-    (.close directory)))
+    (.close directory)
+    nil))
 
 (defn create-lucene-index [index-dir]
   (let [directory (FSDirectory/open (Paths/get index-dir (into-array String [])))

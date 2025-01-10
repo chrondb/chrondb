@@ -19,6 +19,7 @@ stdout
 .lsp/
 .clj-kondo/
 .calva/
+test-index/
 
 ### IntelliJ IDEA ###
 .idea

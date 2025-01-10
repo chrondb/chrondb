@@ -1,5 +1,5 @@
 (ns chrondb.api.v1.routes
-  (:require [compojure.core :refer [defroutes GET POST DELETE]]
+  (:require [compojure.core :refer [GET POST DELETE routes]]
             [compojure.route :as route]
             [chrondb.storage.protocol :as storage]
             [chrondb.index.protocol :as index]
@@ -7,9 +7,13 @@
 
 (defn handle-save [storage index doc]
   (try
-    (storage/save-document storage doc)
-    (index/index-document index doc)
-    (response/response doc)
+    (if (and (map? doc) (:id doc))
+      (let [saved (storage/save-document storage doc)]
+        (index/index-document index saved)
+        (response/response saved))
+      (response/status
+       (response/response {:error "Invalid document format. Must be a map with an :id field"})
+       400))
     (catch Exception e
       (response/status
        (response/response {:error (.getMessage e)})
@@ -23,7 +27,7 @@
      404)))
 
 (defn handle-delete [storage index id]
-  (if-let [doc (storage/get-document storage id)]
+  (if-let [_ (storage/get-document storage id)]
     (do
       (storage/delete-document storage id)
       (index/delete-document index id)
@@ -37,10 +41,10 @@
    {:results (index/search index query)}))
 
 (defn create-routes [storage index]
-  (defroutes app-routes
-    (GET "/" [] (response/response {:message "Welcome to ChronDB"}))
-    (POST "/api/v1/save" {body :body} (handle-save storage index body))
-    (GET "/api/v1/get/:id" [id] (handle-get storage id))
-    (DELETE "/api/v1/delete/:id" [id] (handle-delete storage index id))
-    (GET "/api/v1/search" [q] (handle-search index q))
-    (route/not-found (response/not-found {:error "Not Found"})))) 
+  (routes
+   (GET "/" [] (response/response {:message "Welcome to ChronDB"}))
+   (POST "/api/v1/save" {body :body} (handle-save storage index body))
+   (GET "/api/v1/get/:id" [id] (handle-get storage id))
+   (DELETE "/api/v1/delete/:id" [id] (handle-delete storage index id))
+   (GET "/api/v1/search" [q] (handle-search index q))
+   (route/not-found (response/not-found {:error "Not Found"})))) 
