@@ -16,9 +16,7 @@
 # Build
 target/
 data/
-test-index/
-test-repo/
-
+test-*
 # OS
 .DS_Store
 Thumbs.db
