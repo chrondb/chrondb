@@ -1,28 +1,23 @@
-/target
-/classes
-/checkouts
-/lib/
-/classes/
-/target/
-/checkouts/
-.nrepl-port
+# Clojure
 .cpcache/
-profiles.clj
-pom.xml
-pom.xml.asc
-*.jar
-*.class
-/.lein-*
-/.nrepl-port
-data/
-stdout
-.lsp/
+.lein-*
+.nrepl-port
+.clj-kondo/.cache
+.lsp/.cache
 .clj-kondo/
+
+# IDE
+.idea/
+*.iml
 .calva/
+.lsp/
+.vscode/
+
+# Build
+target/
+data/
 test-index/
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# OS
+.DS_Store
+Thumbs.db
