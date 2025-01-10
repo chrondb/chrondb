@@ -1,9 +1,9 @@
-(ns chrondb.api.server_test
+(ns chrondb.api.server-test
   (:require [clojure.test :refer [deftest is testing]]
             [chrondb.api.server :as server]
             [chrondb.storage.memory :as memory]
             [chrondb.index.lucene :as lucene]
-            [chrondb.test-helpers :as helpers]
+            [chrondb.test-helpers :refer [with-test-data delete-directory]]
             [clojure.data.json :as json]
             [ring.mock.request :as mock]))
 
@@ -21,11 +21,12 @@
       (is (fn? app))
       (.close storage)
       (.close index)
-      (helpers/delete-directory "test-index"))))
+      (delete-directory "test-index"))))
 
 (deftest test-json-middleware
   (testing "JSON middleware"
-    (helpers/with-test-data [storage index]
+    #_{:clj-kondo/ignore [:unresolved-symbol]}
+    (with-test-data [storage index]
       (let [app (server/create-app storage index)
             doc {:id "test:1" :name "Test Doc" :value 42}]
 
@@ -46,7 +47,7 @@
             (is (:error (parse-json-body response)))))
 
         (testing "Empty body request"
-          (let [request (mock/request :get "/api/v1/get/test:1")
+          (let [request (mock/request :get "/api/v1/get/nonexistent")
                 response (app request)]
             (is (= 404 (:status response)))))
 
@@ -65,4 +66,4 @@
       (.stop server)
       (.close storage)
       (.close index)
-      (helpers/delete-directory "test-index")))) 
+      (delete-directory "test-index")))) 

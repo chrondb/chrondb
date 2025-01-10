@@ -1,4 +1,4 @@
-(ns chrondb.test_data
+(ns chrondb.test-data
   "Test data generation for ChronDB.
    Provides sample data and test user information for testing purposes."
   (:require [talltale.core :as faker]))
