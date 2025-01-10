@@ -17,6 +17,7 @@
 target/
 data/
 test-index/
+test-repo/
 
 # OS
 .DS_Store

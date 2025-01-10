@@ -5,9 +5,6 @@
   (:import [java.util.concurrent ConcurrentHashMap]))
 
 (defrecord MemoryStorage [^ConcurrentHashMap data]
-  "Memory-based implementation of the Storage protocol.
-   Stores documents in a thread-safe ConcurrentHashMap."
-
   protocol/Storage
   (save-document [_ doc]
     "Saves a document to the in-memory store.

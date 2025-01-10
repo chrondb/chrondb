@@ -21,21 +21,23 @@
           (handler (assoc request :body json-body)))
         (catch Exception e
           {:status 400
-           :body {:error (str "Invalid JSON: " (.getMessage e))}}))
-      (handler request))))
+           :headers {"Content-Type" "application/json"}
+           :body (json/write-str {:error (str "Invalid JSON: " (.getMessage e))})}))
+      (handler (assoc request :body nil)))))
 
 (defn wrap-json-response
   "Middleware for converting response bodies to JSON.
    Parameters:
-   - _: Unused parameter (kept for middleware chain compatibility)
+   - handler: The Ring handler to wrap
    Returns: A handler that converts response bodies to JSON"
-  [_]
-  (fn [response]
-    (if (coll? (:body response))
-      (-> response
-          (update :body json/write-str)
-          (assoc-in [:headers "Content-Type"] "application/json"))
-      response)))
+  [handler]
+  (fn [request]
+    (let [response (handler request)]
+      (if (coll? (:body response))
+        (-> response
+            (update :body json/write-str)
+            (assoc-in [:headers "Content-Type"] "application/json"))
+        response))))
 
 (defn create-app
   "Creates the main Ring application with all middleware.

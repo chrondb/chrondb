@@ -1,97 +1,99 @@
 (ns chrondb.storage.git
   (:require [chrondb.storage.protocol :as protocol]
-            [clojure.data.json :as json]
-            [clojure.java.io :as io])
-  (:import [org.eclipse.jgit.lib Repository ObjectInserter TreeFormatter ObjectReader]
-           [org.eclipse.jgit.revwalk RevWalk]
-           [org.eclipse.jgit.treewalk TreeWalk]
-           [org.eclipse.jgit.api Git]))
+            [clojure.java.io :as io]
+            [clojure.data.json :as json])
+  (:import [org.eclipse.jgit.api Git]))
 
-(defn ensure-directory [dir]
-  (let [file (io/file dir)]
-    (when-not (.exists file)
-      (if (.mkdirs file)
-        (println "Diretório criado:" (.getAbsolutePath file))
-        (throw (ex-info (str "Não foi possível criar o diretório: " (.getAbsolutePath file))
-                        {:directory dir}))))))
+(defn ensure-directory
+  "Creates a directory if it doesn't exist"
+  [path]
+  (let [dir (io/file path)]
+    (when-not (.exists dir)
+      (if-not (.mkdirs dir)
+        (throw (ex-info (str "Could not create directory: " path)
+                        {:path path}))
+        true))))
 
-(defn create-repository [path]
-  (println "Criando repositório Git em" path)
-  (let [repo-dir (io/file path ".git")
-        work-dir (io/file path)]
-    (println "Criando diretório de trabalho:" (.getAbsolutePath work-dir))
-    (ensure-directory work-dir)
-    (println "Criando diretório .git:" (.getAbsolutePath repo-dir))
-    (ensure-directory repo-dir)
-    (println "Inicializando repositório Git...")
-    (let [git (-> (Git/init)
-                  (.setDirectory work-dir)
-                  (.call))
-          repo (.getRepository git)]
-      (println "Criando commit inicial vazio...")
+(defn create-repository
+  "Creates a new Git repository at the specified path"
+  [path]
+  (ensure-directory path)
+  (let [git (-> (Git/init)
+                (.setDirectory (io/file path))
+                (.call))
+        repo (.getRepository git)]
+    (-> git
+        (.commit)
+        (.setMessage "Initial empty commit")
+        (.setAllowEmpty true)
+        (.setSign false)
+        (.call))
+    repo))
+
+(defrecord GitStorage [repository data-dir]
+  protocol/Storage
+
+  (save-document [_ document]
+    (when-not document
+      (throw (Exception. "Document cannot be nil")))
+    (when-not repository
+      (throw (Exception. "Repository is closed")))
+    (let [git (Git. repository)
+          doc-path (str data-dir "/" (:id document) ".json")]
+      (ensure-directory data-dir)
+      (spit doc-path (json/write-str document))
+      (-> git
+          (.add)
+          (.addFilepattern (str "data/" (:id document) ".json"))
+          (.call))
       (-> git
           (.commit)
-          (.setMessage "Initial empty commit")
-          (.setAllowEmpty true)
+          (.setMessage "Save document")
           (.setSign false)
           (.call))
-      (println "Repositório Git criado com sucesso")
-      repo)))
+      document))
 
-(defrecord GitStorage [^Repository repo]
-  protocol/Storage
-  (save-document [_ doc]
-    (let [content (json/write-str doc)
-          data-file (io/file (.getWorkTree repo) "data")]
-      (spit data-file content)
-      (let [git (Git. repo)]
-        (-> git
-            (.add)
-            (.addFilepattern "data")
-            (.call))
-        (-> git
-            (.commit)
-            (.setMessage "Save document")
-            (.setAllowEmpty false)
-            (.setSign false)
-            (.call))
-        doc)))
+  (get-document [_ id]
+    (when repository
+      (try
+        (let [doc-path (str data-dir "/" id ".json")]
+          (when (.exists (io/file doc-path))
+            (json/read-str (slurp doc-path) :key-fn keyword)))
+        (catch Exception _
+          nil))))
 
-  (get-document [_ _id]
-    (let [^ObjectReader reader (.newObjectReader repo)
-          ^RevWalk walk (RevWalk. reader)
-          commit (.parseCommit walk (.resolve repo "HEAD"))
-          ^TreeWalk tree-walk (TreeWalk/forPath repo "data" (.getTree commit))]
-      (when tree-walk
-        (let [blob-id (.getObjectId tree-walk 0)
-              content (String. (.open reader blob-id) "UTF-8")]
-          (json/read-str content :key-fn keyword)))))
-
-  (delete-document [_ _id]
-    (let [^ObjectInserter inserter (.newObjectInserter repo)
-          tree (TreeFormatter.)
-          tree-id (.insert inserter tree)
-          commit (-> repo
-                     (.resolve "HEAD")
-                     (RevWalk.)
-                     (.parseCommit))
-          new-commit (-> repo
-                         (.newCommit)
-                         (.setTreeId tree-id)
-                         (.setParentId (.getId commit))
-                         (.setMessage "Delete document")
-                         (.create inserter))]
-      (.flush inserter)
-      (let [update (.updateRef repo "refs/heads/main")]
-        (.setNewObjectId update new-commit)
-        (.update update))
-      true))
+  (delete-document [_ id]
+    (when repository
+      (try
+        (let [git (Git. repository)
+              doc-path (str data-dir "/" id ".json")
+              file (io/file doc-path)]
+          (if (.exists file)
+            (do
+              (.delete file)
+              (-> git
+                  (.rm)
+                  (.addFilepattern (str "data/" id ".json"))
+                  (.call))
+              (-> git
+                  (.commit)
+                  (.setMessage "Delete document")
+                  (.setSign false)
+                  (.call))
+              true)
+            false))
+        (catch Exception _
+          false))))
 
   (close [_]
-    (.close repo)
-    nil))
+    (when repository
+      (.close repository))
+    (GitStorage. nil data-dir)))
 
-(defn create-git-storage [path]
-  (println "Criando storage...")
-  (let [repo (create-repository path)]
-    (->GitStorage repo))) 
+(defn create-git-storage
+  "Creates a new Git storage instance"
+  [path]
+  (let [repo (create-repository path)
+        data-dir (str path "/data")]
+    (ensure-directory data-dir)
+    (->GitStorage repo data-dir))) 
