@@ -39,8 +39,9 @@
     (when-not repository
       (throw (Exception. "Repository is closed")))
     (let [git (Git. repository)
-          doc-path (str data-dir "/" (:id document) ".json")]
-      (ensure-directory data-dir)
+          doc-path (str data-dir "/" (:id document) ".json")
+          doc-file (io/file doc-path)]
+      (ensure-directory (.getParentFile doc-file))
       (spit doc-path (json/write-str document))
       (-> git
           (.add)
