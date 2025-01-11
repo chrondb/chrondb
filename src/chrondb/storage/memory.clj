@@ -4,30 +4,39 @@
   (:require [chrondb.storage.protocol :as protocol])
   (:import [java.util.concurrent ConcurrentHashMap]))
 
+(defn save-document-memory
+  "Saves a document to the in-memory store.
+   Thread-safe operation using ConcurrentHashMap."
+  [^ConcurrentHashMap data doc]
+  (.put data (:id doc) doc)
+  doc)
+
+(defn get-document-memory
+  "Retrieves a document from the in-memory store by its ID.
+   Returns nil if the document doesn't exist."
+  [^ConcurrentHashMap data id]
+  (.get data id))
+
+(defn delete-document-memory
+  "Removes a document from the in-memory store.
+   Returns true if the document was found and deleted."
+  [^ConcurrentHashMap data id]
+  (when (.containsKey data id)
+    (.remove data id)
+    true))
+
+(defn close-memory-storage
+  "Clears all documents from memory and releases resources."
+  [^ConcurrentHashMap data]
+  (.clear data))
+
 (defrecord MemoryStorage [^ConcurrentHashMap data]
   protocol/Storage
-  (save-document [_ doc]
-    "Saves a document to the in-memory store.
-     Thread-safe operation using ConcurrentHashMap."
-    (.put data (:id doc) doc)
-    doc)
-
-  (get-document [_ id]
-    "Retrieves a document from the in-memory store by its ID.
-     Returns nil if the document doesn't exist."
-    (.get data id))
-
-  (delete-document [_ id]
-    "Removes a document from the in-memory store.
-     Returns true if the document was found and deleted."
-    (when (.containsKey data id)
-      (.remove data id)
-      true))
-
-  java.io.Closeable
+  (save-document [_ doc] (save-document-memory data doc))
+  (get-document [_ id] (get-document-memory data id))
+  (delete-document [_ id] (delete-document-memory data id))
   (close [_]
-    "Clears all documents from memory and releases resources."
-    (.clear data)
+    (close-memory-storage data)
     nil))
 
 (defn create-memory-storage

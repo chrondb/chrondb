@@ -20,8 +20,8 @@
                                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
                        :exec-fn cognitect.test-runner.api/test
                        :main-opts ["-m" "cognitect.test-runner"]}
-             :example {:main-opts ["-m" "chrondb.examples"]
-                       :exec-fn chrondb.examples/-main}
+             :example {:main-opts ["-m" "chrondb.example"]
+                       :exec-fn chrondb.example/-main}
              :build {:deps {io.github.clojure/tools.build {:git/tag "v0.9.4" :git/sha "76b78fe"}}
                      :ns-default build}
              :dev {:extra-paths ["dev"]
@@ -41,4 +41,21 @@
                                     "--fail-threshold" "65"
                                     "--codecov"
                                     "--html"
-                                    "--output" "target/coverage"]}}}
+                                    "--output" "target/coverage"]}
+             :codox {:extra-deps {codox/codox {:mvn/version "0.10.8"}}
+                    :exec-fn codox.main/generate-docs
+                    :exec-args {:name "ChronDB"
+                              :version "0.1.0"
+                              :description "Chronological key/value Database storing based on database-shaped git (core) architecture"
+                              :source-paths ["src"]
+                              :output-path "docs/api"
+                              :source-uri "https://github.com/chrondb/chrondb/blob/main/{filepath}#L{line}"
+                              :metadata {:doc/format :markdown}
+                              :themes [:default]
+                              :namespaces [chrondb.core
+                                         chrondb.storage.git
+                                         chrondb.storage.memory
+                                         chrondb.storage.protocol
+                                         chrondb.index.lucene
+                                         chrondb.index.protocol
+                                         chrondb.util.logging]}}}}

@@ -1,72 +1,125 @@
-# ![chrondb](https://user-images.githubusercontent.com/31996/161378505-4a8824b6-d5f1-4ce0-897b-cec1c5820b26.png)
+# ChronDB
 
-> ⚠️ this project is in development ⚠️
-
-_Chronological **key/value** Database storing based on database-shaped `git` (core) architecture_
+_Chronological **key/value** Database storing based on database-shaped `git` (core) architecture and Lucene for indexing._
 
 ## Features
 
-- **Historic change** with chronological evolution - _aka_ git commits (gpg signature support)
-- Document - schemeless
-- Gzip compress content
-- Search and Full Text Search _(by lucene)_
-- Sorting by any field
-- Flexible faceting, highlighting, joins and result grouping
-- Cross-Platform Solution - Linux, \*BSD, macOS and Windows
-- Transactions - git merge after temp branch save
-- Cluster - multi git repository (regardless of location)
-- High availability
-- Plugable/Expandable
-- Triggers by events via hooks (pre-receive, update and post-receive)
-  - Data replication - _post-receive_
+We are:
+- Immutable and atomic data
+- ACID transactions
+- Schemaless
+- Chronological
+- SQL compliance - in query within document
 
-## Architecture
+Understand how and when changes were made. **chrondb** stores all history, and lets you query against any point in time.
 
-The project is organized in a modular way, following functional programming principles:
+Git structure is a powerful solution for storing **"data"** (files) in chronological order, _chrondb_ uses git core as a data structure to structure the data timeline, making it possible to return to any necessary point and bringing all git functions for a database:
 
+- diff
+- notes
+- restore
+- branch
+- checkout
+- revert
+- merge
+- log
+- blame
+- archive
+- [hooks](https://git-scm.com/docs/githooks#_hooks)
+- ... [git high-level commands (porcelain)](https://git-scm.com/docs/git#_high_level_commands_porcelain)
+
+## Term alignment, from database to git
+
+> The goal is to speak the same language as the database world
+- database: _git_ repository (local or remotely)
+- scheme: _git_ branch
+- table: directory added on _git_ repository
+- field struct: json (document) - will be persisted in a file and indexed in _lucene_
+
+## Configuration
+
+ChronDB uses an EDN configuration file to define its settings. To get started, copy the `config.example.edn` file to `config.edn`:
+
+```bash
+cp config.example.edn config.edn
 ```
-src/chrondb/
-├── core/           # Core Git operations
-├── storage/        # Storage implementations
-├── index/          # Search index implementations
-├── compression/    # Compression utilities
-└── api/            # API implementations
-```
 
-### Components
+### Configuration File Structure
 
-- **Storage**: Handles data persistence using Git as the storage engine
-- **Index**: Manages search indexes using Lucene
-- **API**: Provides REST endpoints for data operations
+The configuration file is divided into three main sections:
 
-### Communication
-
-Components communicate through well-defined protocols:
+#### 1. Git Configuration (:git)
 
 ```clojure
-;; Storage Protocol
-(defprotocol Storage
-  (save [this key value])
-  (get-value [this key])
-  (delete [this key]))
-
-;; Index Protocol
-(defprotocol Index
-  (index! [this document fields])
-  (search [this query limit])
-  (remove! [this document]))
+:git {
+  :committer-name "ChronDB"      ; Name used in commits
+  :committer-email "chrondb@example.com"  ; Email used in commits
+  :default-branch "main"         ; Default repository branch
+  :sign-commits false            ; Whether to sign commits with GPG
+}
 ```
 
-## API
+#### 2. Storage Configuration (:storage)
 
-### REST Endpoints
+```clojure
+:storage {
+  :data-dir "data"              ; Directory where data will be stored
+}
+```
 
-- `GET /api/v1/get/:key` - Retrieve a value by key
-- `POST /api/v1/save` - Save a value with optional indexing
-- `DELETE /api/v1/delete/:key` - Delete a value
-- `GET /api/v1/search` - Search indexed documents
+#### 3. Logging Configuration (:logging)
 
-### Clojure API
+```clojure
+:logging {
+  :level :info                  ; Log level (:debug, :info, :warn, :error)
+  :output :stdout               ; Log output (:stdout or :file)
+  :file "chrondb.log"          ; Log file (when output is :file)
+}
+```
+
+### Log Levels
+
+- `:debug` - Detailed information for development/debugging
+- `:info` - General operation information
+- `:warn` - Warnings that don't affect functionality
+- `:error` - Errors that may affect functionality
+
+### Usage Example
+
+```clojure
+(require '[chrondb.config :as config])
+
+;; Load configuration from config.edn
+(def chrondb-config (config/load-config))
+
+;; Or specify a different file
+(def custom-config (config/load-config "custom-config.edn"))
+```
+
+## Development
+
+To run the example with default configuration:
+
+```bash
+clj -X:example
+```
+
+To run tests:
+
+```bash
+clj -X:test
+```
+
+## Installation
+
+Add the following dependency to your `deps.edn`:
+
+```clojure
+{:deps {com.github.chrondb/chrondb {:git/tag "v0.1.0" 
+                                   :git/sha "..."}}}
+```
+
+## Quick Start
 
 ```clojure
 (require '[chrondb.core :as chrondb])
@@ -74,46 +127,45 @@ Components communicate through well-defined protocols:
 ;; Create a new ChronDB instance
 (def db (chrondb/create-chrondb))
 
-;; Save a value
-(chrondb/save db "user:1" {:name "John" :age 30} :fields [:name :age])
+;; Save a document
+(chrondb/save db "user:1" {:name "John" :age 30})
 
-;; Get a value
-(chrondb/get-value db "user:1")
+;; Get a document
+(chrondb/get db "user:1")
 
-;; Search
-(chrondb/search db {:name "John"} :limit 10)
+;; Search documents
+(chrondb/search db "name:John")
 
-;; Delete
-(chrondb/delete db "user:1")
+;; Get document history
+(chrondb/history db "user:1")
+
+;; Get document at specific point in time
+(chrondb/get-at db "user:1" "2024-01-01T00:00:00Z")
 ```
 
-## Development
+## Requirements
 
-### Prerequisites
+- Java 11 or later
+- Git 2.25.0 or later
 
-- Java 11+
-- Clojure 1.11.1+
+## Documentation
 
-### Running
+For more detailed documentation, see:
+- [Configuration Guide](docs/configuration.md)
+- [API Reference](docs/api.md)
+- [Example Usage](src/chrondb/example.clj)
 
-```sh
-clj -X:run
+For generated API documentation, run:
+```bash
+clj -X:codox
 ```
 
-### Testing
+## Contributing
 
-```sh
-clj -X:test
-```
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
-### Development REPL
-
-```sh
-clj -M:dev
-```
+Please make sure to update tests as appropriate.
 
 ## License
 
-Copyright © 2024 Avelino
-
-Distributed under the Eclipse Public License version 1.0.
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.

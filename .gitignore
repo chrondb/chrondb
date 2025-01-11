@@ -17,6 +17,10 @@
 target/
 data/
 test-*
+
 # OS
 .DS_Store
 Thumbs.db
+
+# doc codox
+docs/api/
