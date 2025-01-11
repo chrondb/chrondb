@@ -229,7 +229,7 @@
               doc-file (io/file (.getWorkTree (.getRepository git)) doc-path)]
           (if (.exists doc-file)
             (do
-              (.delete doc-file)
+              (io/delete-file doc-file)
               (when (.exists doc-file)
                 (throw (Exception. "Failed to delete document file")))
               true)
