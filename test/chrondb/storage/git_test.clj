@@ -2,16 +2,28 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [chrondb.storage.git :as git]
             [chrondb.storage.protocol :as protocol]
+            [chrondb.util.logging :as log]
             [clojure.java.io :as io])
   (:import [org.eclipse.jgit.api Git]))
 
 (def test-repo-path "test-repo")
+
+(def test-config
+  {:git {:committer-name "ChronDB"
+         :committer-email "chrondb@example.com"
+         :default-branch "main"
+         :sign-commits false}
+   :storage {:data-dir "data"}
+   :logging {:level :debug
+            :output :stdout
+            :file "test.log"}})
 
 (defn clean-test-repo [f]
   (let [repo-dir (io/file test-repo-path)]
     (when (.exists repo-dir)
       (doseq [file (reverse (file-seq repo-dir))]
         (.delete file))))
+  (log/init! test-config)
   (f))
 
 (use-fixtures :each clean-test-repo)

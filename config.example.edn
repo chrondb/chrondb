@@ -1,0 +1,8 @@
+{:git {:committer-name "ChronDB"
+      :committer-email "chrondb@example.com"
+      :default-branch "main"
+      :sign-commits false}
+ :storage {:data-dir "data"}
+ :logging {:level :info  ; :debug, :info, :warn, :error
+          :output :stdout  ; :stdout, :file
+          :file "chrondb.log"}} 

@@ -1,5 +1,9 @@
 (ns chrondb.storage.git
+  "Git-based storage implementation for ChronDB.
+   Uses JGit for Git operations and provides versioned document storage."
   (:require [chrondb.storage.protocol :as protocol]
+            [chrondb.util.logging :as log]
+            [chrondb.config :as config]
             [clojure.java.io :as io]
             [clojure.data.json :as json])
   (:import [org.eclipse.jgit.api Git]
@@ -8,7 +12,8 @@
            [org.eclipse.jgit.util SystemReader]))
 
 (defn ensure-directory
-  "Creates a directory if it doesn't exist"
+  "Creates a directory if it doesn't exist.
+   Throws an exception if directory creation fails."
   [path]
   (let [dir (io/file path)]
     (when-not (.exists dir)
@@ -17,158 +22,132 @@
                        {:path path}))
         true))))
 
-(defn- configure-global-git []
+(defn- configure-global-git
+  "Configures global Git settings to disable GPG signing."
+  []
   (let [global-config (-> (SystemReader/getInstance)
                          (.getUserConfig))]
     (.setBoolean global-config "commit" nil "gpgsign" false)
     (.unset global-config "gpg" nil "format")
     (.save global-config)))
 
-(defn- configure-repository [repo]
+(defn- configure-repository
+  "Configures repository-specific Git settings."
+  [repo]
   (configure-global-git)
   (let [config (.getConfig repo)]
-    (.unsetSection config ConfigConstants/CONFIG_GPG_SECTION nil)
-    (.unsetSection config "gpg" nil)
     (.setBoolean config ConfigConstants/CONFIG_COMMIT_SECTION nil ConfigConstants/CONFIG_KEY_GPGSIGN false)
-    (.setBoolean config "commit" nil "gpgsign" false)
-    (.unset config ConfigConstants/CONFIG_GPG_SECTION nil "format")
-    (.unset config "gpg" nil "format")
     (.setString config ConfigConstants/CONFIG_CORE_SECTION nil ConfigConstants/CONFIG_KEY_FILEMODE "false")
     (.save config)))
 
-#_{:clj-kondo/ignore [:unused-private-var]}
-(defn- init-repository [path]
-  (let [repo (-> (Git/init)
-                 (.setDirectory (io/file path))
-                 (.call))]
-    (configure-repository (.getRepository repo))
-    repo))
-
-#_{:clj-kondo/ignore [:unused-private-var]}
-(defn- create-initial-commit [git]
-  (-> git
-      (.commit)
-      (.setMessage "Initial empty commit")
-      (.setAllowEmpty true)
-      (.setCommitter "ChronDB" "chrondb@example.com")
-      (.setSign false)
-      (.call)))
-
-#_{:clj-kondo/ignore [:unused-private-var]}
-(defn- setup-main-branch [git]
-  (-> git
-      (.branchCreate)
-      (.setName "main")
-      (.setForce true)
-      (.call))
-  (-> git
-      (.checkout)
-      (.setName "main")
-      (.call)))
-
-(defn- cleanup-temp-clone [{:keys [repo path]}]
+(defn- cleanup-temp-clone
+  "Cleans up temporary clone by closing repository and deleting directory."
+  [{:keys [repo path]}]
   (.close repo)
   (try 
     (io/delete-file (io/file path) true)
     (catch Exception _)))
 
-(defn- with-temp-clone [repository f operation-type]
-  (let [temp-path (str (System/getProperty "java.io.tmpdir") "/chrondb-" (System/currentTimeMillis))
+(defn- handle-git-status
+  "Handles Git status by adding/removing files as needed."
+  [git status]
+  (let [untracked-files (.getUntracked status)
+        modified-files (.getModified status)
+        removed-files (.getRemoved status)
+        missing-files (.getMissing status)]
+    
+    (when (seq untracked-files)
+      (log/log-debug "Adding untracked files:" untracked-files)
+      (doseq [file untracked-files]
+        (-> git (.add) (.addFilepattern file) (.call))))
+    
+    (when (seq modified-files)
+      (log/log-debug "Adding modified files:" modified-files)
+      (doseq [file modified-files]
+        (-> git (.add) (.addFilepattern file) (.call))))
+    
+    (when (seq removed-files)
+      (log/log-debug "Removing files:" removed-files)
+      (doseq [file removed-files]
+        (-> git (.rm) (.addFilepattern file) (.call))))
+
+    (when (seq missing-files)
+      (log/log-debug "Removing missing files:" missing-files)
+      (doseq [file missing-files]
+        (-> git (.rm) (.addFilepattern file) (.call))))))
+
+(defn- commit-and-push
+  "Commits changes and pushes to remote repository."
+  [git operation-type config-map]
+  (-> git
+      (.commit)
+      (.setMessage (case operation-type
+                    :save "Save document"
+                    :delete "Delete document"
+                    :init "Initial empty commit"
+                    "Git operation"))
+      (.setCommitter (get-in config-map [:git :committer-name])
+                    (get-in config-map [:git :committer-email]))
+      (.setSign (get-in config-map [:git :sign-commits]))
+      (.call))
+  
+  (log/log-info "Pushing changes...")
+  (-> git
+      (.push)
+      (.setRemote "origin")
+      (.setRefSpecs [(RefSpec. (str "+refs/heads/" (get-in config-map [:git :default-branch]) 
+                                   ":refs/heads/" (get-in config-map [:git :default-branch])))])
+      (.setForce true)
+      (.call)))
+
+(defn- with-temp-clone
+  "Executes operations in a temporary clone of the repository.
+   Handles cloning, pulling, committing, and cleanup."
+  [repository f operation-type]
+  (let [config-map (config/load-config)
+        temp-path (str (System/getProperty "java.io.tmpdir") "/chrondb-" (System/currentTimeMillis))
         git-clone (-> (Git/cloneRepository)
                      (.setURI (str "file://" (.getAbsolutePath (.getDirectory repository))))
                      (.setDirectory (io/file temp-path))
-                     (.setBranch "main")
+                     (.setBranch (get-in config-map [:git :default-branch]))
                      (.call))]
     (try
-      (println "Cloned repository to:" temp-path)
+      (log/log-info "Cloned repository to:" temp-path)
       (configure-repository (.getRepository git-clone))
       
-      ;; Pull antes de fazer qualquer operação
-      (println "Pulling from origin/main...")
+      (log/log-info "Pulling from origin...")
       (-> git-clone
           (.pull)
           (.setRemote "origin")
-          (.setRemoteBranchName "main")
+          (.setRemoteBranchName (get-in config-map [:git :default-branch]))
           (.call))
       
       (let [result (f git-clone)
             status (-> git-clone (.status) (.call))]
-        (println "\nGit status after operation:")
-        (println "Modified:" (.getModified status))
-        (println "Added:" (.getAdded status))
-        (println "Removed:" (.getRemoved status))
-        (println "Untracked:" (.getUntracked status))
+        (log/log-git-status status)
+        (handle-git-status git-clone status)
         
-        ;; Verificar se há arquivos não rastreados
-        (let [untracked-files (.getUntracked status)]
-          (when (seq untracked-files)
-            (println "Adding untracked files:" untracked-files)
-            (doseq [file untracked-files]
-              (-> git-clone
-                  (.add)
-                  (.addFilepattern file)
-                  (.call)))))
-        
-        ;; Verificar se há arquivos modificados
-        (let [modified-files (.getModified status)]
-          (when (seq modified-files)
-            (println "Adding modified files:" modified-files)
-            (doseq [file modified-files]
-              (-> git-clone
-                  (.add)
-                  (.addFilepattern file)
-                  (.call)))))
-        
-        ;; Verificar se há arquivos removidos
-        (let [removed-files (.getRemoved status)]
-          (when (seq removed-files)
-            (println "Removing files:" removed-files)
-            (doseq [file removed-files]
-              (-> git-clone
-                  (.rm)
-                  (.addFilepattern file)
-                  (.call)))))
-        
-        ;; Verificar novamente o status após as operações
         (let [new-status (-> git-clone (.status) (.call))]
           (when (or (seq (.getModified new-status))
                     (seq (.getAdded new-status))
                     (seq (.getRemoved new-status))
                     (seq (.getUntracked new-status)))
-            (println "\nChanges detected, committing...")
-            
-            ;; Commit
-            (println "Creating commit...")
-            (-> git-clone
-                (.commit)
-                (.setMessage (case operation-type
-                             :save "Save document"
-                             :delete "Delete document"
-                             "Git operation"))
-                (.setCommitter "ChronDB" "chrondb@example.com")
-                (.setSign false)
-                (.call))
-            
-            ;; Push com força
-            (println "Pushing changes...")
-            (-> git-clone
-                (.push)
-                (.setRemote "origin")
-                (.setRefSpecs [(RefSpec. "+refs/heads/main:refs/heads/main")])
-                (.setForce true)
-                (.call))
-            
-            (println "Changes committed and pushed.")))
+            (log/log-info "Changes detected, committing...")
+            (commit-and-push git-clone operation-type config-map)))
         
         result)
       (finally
-        (println "Cleaning up temporary clone...")
+        (log/log-info "Cleaning up temporary clone...")
         (.close git-clone)
         (cleanup-temp-clone {:repo git-clone :path temp-path})))))
 
-(defn create-repository [path]
+(defn create-repository
+  "Creates a new Git repository for document storage.
+   Initializes the repository with an empty commit and configures it."
+  [path]
   (ensure-directory path)
-  (let [git (-> (Git/init)
+  (let [config-map (config/load-config)
+        git (-> (Git/init)
                 (.setDirectory (io/file path))
                 (.setBare true)
                 (.call))
@@ -181,50 +160,20 @@
       (try
         (configure-repository (.getRepository temp-git))
         
-        ;; Configurar remote
         (-> temp-git
             (.remoteAdd)
             (.setName "origin")
             (.setUri (URIish. (str "file://" (.getAbsolutePath (.getDirectory repo)))))
             (.call))
         
-        ;; Criar diretório de dados
-        (ensure-directory (str temp-path "/data"))
+        (ensure-directory (str temp-path "/" (get-in config-map [:storage :data-dir])))
         
-        ;; Adicionar diretório de dados
         (-> temp-git
             (.add)
-            (.addFilepattern "data")
+            (.addFilepattern (get-in config-map [:storage :data-dir]))
             (.call))
         
-        ;; Criar commit inicial vazio
-        (-> temp-git
-            (.commit)
-            (.setMessage "Initial empty commit")
-            (.setAllowEmpty true)
-            (.setCommitter "ChronDB" "chrondb@example.com")
-            (.setSign false)
-            (.call))
-        
-        ;; Criar e configurar branch main
-        (-> temp-git
-            (.branchCreate)
-            (.setName "main")
-            (.setForce true)
-            (.call))
-        
-        (-> temp-git
-            (.checkout)
-            (.setName "main")
-            (.call))
-        
-        ;; Push inicial
-        (-> temp-git
-            (.push)
-            (.setRemote "origin")
-            (.setRefSpecs [(RefSpec. "+refs/heads/main:refs/heads/main")])
-            (.setForce true)
-            (.call))
+        (commit-and-push temp-git :init config-map)
         
         (finally
           (.close temp-git)
@@ -242,158 +191,63 @@
       (fn [git]
         (let [doc-path (str data-dir "/" (:id document) ".json")
               doc-file (io/file (.getWorkTree (.getRepository git)) doc-path)]
-          ;; Garantir que o diretório data existe
           (ensure-directory (.getParentFile doc-file))
-          (println "Writing document to:" doc-path)
+          (log/log-debug "Writing document to:" doc-path)
           
-          ;; Escrever o documento
           (spit doc-file (json/write-str document))
           (when-not (.exists doc-file)
             (throw (Exception. "Failed to create document file")))
           
-          ;; Verificar se o arquivo foi criado corretamente
-          (let [content (slurp doc-file)]
-            (println "Written content:" content)
-            (let [parsed (json/read-str content :key-fn keyword)]
-              (println "Parsed content:" parsed)
-              (when-not (= parsed document)
-                (throw (Exception. "Document verification failed")))))
-          
-          ;; Adicionar e commitar o arquivo imediatamente
-          (println "Adding document to git...")
-          (-> git
-              (.add)
-              (.addFilepattern doc-path)
-              (.call))
-          
-          ;; Verificar status após adicionar
-          (let [status (-> git (.status) (.call))]
-            (println "Status after add:")
-            (println "Modified:" (.getModified status))
-            (println "Added:" (.getAdded status))
-            (println "Removed:" (.getRemoved status))
-            (println "Untracked:" (.getUntracked status)))
-          
-          ;; Commit
-          (println "Creating commit...")
-          (-> git
-              (.commit)
-              (.setMessage "Save document")
-              (.setCommitter "ChronDB" "chrondb@example.com")
-              (.setSign false)
-              (.call))
-          
-          ;; Push com força
-          (println "Pushing changes...")
-          (-> git
-              (.push)
-              (.setRemote "origin")
-              (.setRefSpecs [(RefSpec. "+refs/heads/main:refs/heads/main")])
-              (.setForce true)
-              (.call))
+          (let [content (slurp doc-file)
+                parsed (json/read-str content :key-fn keyword)]
+            (when-not (= parsed document)
+              (throw (Exception. "Document verification failed"))))
           
           document))
       :save))
 
   (get-document [_ id]
-    (when repository
-      (try
-        (with-temp-clone repository
-          (fn [git]
-            (let [doc-path (str data-dir "/" id ".json")
-                  doc-file (io/file (.getWorkTree (.getRepository git)) doc-path)]
-              (println "Trying to read document from:" doc-path)
-              (println "Repository directory:" (.getAbsolutePath (.getWorkTree (.getRepository git))))
-              (println "Full document path:" (.getAbsolutePath doc-file))
-              
-              ;; Pull antes de tentar ler
-              (println "Pulling latest changes...")
-              (-> git
-                  (.pull)
-                  (.setRemote "origin")
-                  (.setRemoteBranchName "main")
-                  (.call))
-              
-              ;; Verificar se o arquivo existe
-              (println "Checking if file exists at:" (.getAbsolutePath doc-file))
-              (when (.exists doc-file)
-                (println "Document found, reading content...")
-                (let [content (slurp doc-file)]
-                  (println "Raw content:" content)
-                  (when (empty? content)
-                    (throw (Exception. "Document file is empty")))
-                  
-                  (let [parsed (json/read-str content :key-fn keyword)]
-                    (println "Parsed content:" parsed)
-                    (when-not (:id parsed)
-                      (throw (Exception. "Invalid document format: missing id")))
-                    parsed)))))
-          :get)
-        (catch Exception e
-          (println "Error getting document:" (.getMessage e))
-          (println "Stack trace:" (with-out-str (.printStackTrace e)))
-          nil))))
+    (when-not repository
+      (throw (Exception. "Repository is closed")))
+    (with-temp-clone repository
+      (fn [git]
+        (let [doc-path (str data-dir "/" id ".json")
+              doc-file (io/file (.getWorkTree (.getRepository git)) doc-path)]
+          (when (.exists doc-file)
+            (try
+              (json/read-str (slurp doc-file) :key-fn keyword)
+              (catch Exception e
+                (throw (ex-info "Failed to read document" {:id id} e)))))))
+      :read))
 
   (delete-document [_ id]
-    (if-not repository
-      false
-      (try
-        (with-temp-clone repository
-          (fn [git]
-            (let [doc-path (str data-dir "/" id ".json")
-                  doc-file (io/file (.getWorkTree (.getRepository git)) doc-path)]
-              (println "Trying to delete document:" doc-path)
-              
-              ;; Pull antes de tentar deletar
-              (-> git
-                  (.pull)
-                  (.setRemote "origin")
-                  (.setRemoteBranchName "main")
-                  (.call))
-              
-              (if (.exists doc-file)
-                (do
-                  (println "Document found, deleting...")
-                  (.delete doc-file)
-                  (-> git
-                      (.rm)
-                      (.addFilepattern doc-path)
-                      (.call))
-                  
-                  ;; Commit
-                  (-> git
-                      (.commit)
-                      (.setMessage "Delete document")
-                      (.setCommitter "ChronDB" "chrondb@example.com")
-                      (.setSign false)
-                      (.call))
-                  
-                  ;; Push com força
-                  (-> git
-                      (.push)
-                      (.setRemote "origin")
-                      (.setRefSpecs [(RefSpec. "+refs/heads/main:refs/heads/main")])
-                      (.setForce true)
-                      (.call))
-                  
-                  true)
-                (do
-                  (println "Document not found")
-                  false))))
-          :delete)
-        (catch Exception e
-          (println "Error deleting document:" (.getMessage e))
-          (println "Stack trace:" (with-out-str (.printStackTrace e)))
-          false))))
+    (when-not repository
+      (throw (Exception. "Repository is closed")))
+    (with-temp-clone repository
+      (fn [git]
+        (let [doc-path (str data-dir "/" id ".json")
+              doc-file (io/file (.getWorkTree (.getRepository git)) doc-path)]
+          (if (.exists doc-file)
+            (do
+              (.delete doc-file)
+              (when (.exists doc-file)
+                (throw (Exception. "Failed to delete document file")))
+              true)
+            false)))
+      :delete))
 
-  java.io.Closeable
   (close [_]
     (when repository
-      (.close repository))
-    (->GitStorage nil data-dir)))
+      (.close repository)
+      nil)))
 
-(defn create-git-storage [path]
-  (let [data-dir "data"]
-    (ensure-directory (str path "/" data-dir))
-    (let [repo (create-repository path)]
-      (->GitStorage repo data-dir)))) 
+(defn create-git-storage
+  "Creates a new instance of GitStorage.
+   Takes a path for the Git repository and optionally a data directory path.
+   If data-dir is not provided, uses the one from config.
+   Returns: A new GitStorage instance."
+  ([path]
+   (let [config-map (config/load-config)]
+     (create-git-storage path (get-in config-map [:storage :data-dir]))))
+  ([path data-dir]
+   (->GitStorage (create-repository path) data-dir))) 
