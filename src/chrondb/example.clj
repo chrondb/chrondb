@@ -60,7 +60,7 @@
     
     (println "\nVerificando se usuário 5 foi deletado...")
     (if-let [user (get-user chrondb "user:5")]
-      (log/log-warn "Usuário ainda existe!")
+      (log/log-warn "Usuário ainda existe!" user)
       (log/log-info "Usuário deletado com sucesso!"))
     
     (.close (:storage chrondb))
