@@ -5,7 +5,6 @@
   (:import [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.transport URIish RefSpec]
            [org.eclipse.jgit.lib ConfigConstants]
-           [org.eclipse.jgit.storage.file FileBasedConfig]
            [org.eclipse.jgit.util SystemReader]))
 
 (defn ensure-directory
@@ -37,6 +36,7 @@
     (.setString config ConfigConstants/CONFIG_CORE_SECTION nil ConfigConstants/CONFIG_KEY_FILEMODE "false")
     (.save config)))
 
+#_{:clj-kondo/ignore [:unused-private-var]}
 (defn- init-repository [path]
   (let [repo (-> (Git/init)
                  (.setDirectory (io/file path))
@@ -44,6 +44,7 @@
     (configure-repository (.getRepository repo))
     repo))
 
+#_{:clj-kondo/ignore [:unused-private-var]}
 (defn- create-initial-commit [git]
   (-> git
       (.commit)
@@ -53,6 +54,7 @@
       (.setSign false)
       (.call)))
 
+#_{:clj-kondo/ignore [:unused-private-var]}
 (defn- setup-main-branch [git]
   (-> git
       (.branchCreate)
